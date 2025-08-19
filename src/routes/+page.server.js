@@ -1,171 +1,238 @@
-import { supabaseAdmin } from '$lib/server/supabase.js';
-import { redirect } from '@sveltejs/kit';
+import { supabase } from '$lib/server/supabase.js';
+import { fail } from '@sveltejs/kit';
 
 export async function load() {
-	// Ambil daftar cawangan, musim, dan relasi musim-kategori (aktif saja) via tabel penghubung N:M
-	const [
-		{ data: branches },
-		{ data: seasons },
-		{ data: seasonCategories },
-		{ data: packageTypes },
-		{ data: destinations },
-		{ data: outboundDates },
-		{ data: salesConsultants }
-	] = await Promise.all([
-		supabaseAdmin.from('branches').select('id, name, whatsapp_number').eq('is_active', true).order('name'),
-		supabaseAdmin.from('umrah_seasons').select('id, name').eq('is_active', true).order('name'),
-		supabaseAdmin
-			.from('umrah_season_categories')
-			.select('season_id, category:umrah_categories!inner(id, name, is_active)')
+	try {
+		// Fetch branches
+		const { data: branches, error: branchesError } = await supabase
+			.from('branches')
+			.select('id, name, state, region')
 			.eq('is_active', true)
-			.eq('umrah_categories.is_active', true),
-		supabaseAdmin.from('package_types').select('id, name').order('name'),
-		supabaseAdmin.from('destinations').select('id, name, sales_consultant_id').order('name'),
-		supabaseAdmin.from('outbound_dates').select('id, destination_id, start_date, end_date').order('destination_id'),
-		supabaseAdmin.from('sales_consultant').select('id, name, whatsapp_number')
-	]);
+			.order('name');
 
-	const categoriesBySeason = new Map();
-	for (const row of seasonCategories ?? []) {
-		const list = categoriesBySeason.get(row.season_id) ?? [];
-		if (row.category) list.push({ id: row.category.id, name: row.category.name });
-		categoriesBySeason.set(row.season_id, list);
-	}
-
-	// Mapping destinasi -> senarai tarikh
-	const dateRangesByDestination = new Map();
-	for (const od of outboundDates ?? []) {
-		const list = dateRangesByDestination.get(od.destination_id) ?? [];
-		if (od.start_date && od.end_date) {
-			const dateRange = `${od.start_date} - ${od.end_date}`;
-			list.push({ id: od.id, date_range: dateRange });
+		if (branchesError) {
+			console.error('Error fetching branches:', branchesError);
 		}
-		dateRangesByDestination.set(od.destination_id, list);
-	}
 
-	// Mapping sales consultant
-	const salesConsultantMap = new Map();
-	for (const sc of salesConsultants ?? []) {
-		salesConsultantMap.set(sc.id, { name: sc.name, whatsapp_number: sc.whatsapp_number });
-	}
+		// Fetch package types
+		const { data: packageTypes, error: packageTypesError } = await supabase
+			.from('package_types')
+			.select('id, name, description')
+			.eq('is_active', true)
+			.order('name');
 
-	return {
-		branches: branches ?? [],
-		seasons: (seasons ?? []).map((s) => ({
-			id: s.id,
-			name: s.name,
-			categories: categoriesBySeason.get(s.id) ?? []
-		})),
-		packageTypes: (packageTypes ?? []).map((p) => ({ id: p.id, name: p.name })),
-		destinations: (destinations ?? []).map((d) => ({
-			id: d.id,
-			name: d.name,
-			dates: dateRangesByDestination.get(d.id) ?? [],
-			sales_consultant: salesConsultantMap.get(d.sales_consultant_id)
-		}))
-	};
+		if (packageTypesError) {
+			console.error('Error fetching package types:', packageTypesError);
+		}
+
+		// Fetch destinations (outbound destinations)
+		const { data: destinations, error: destinationsError } = await supabase
+			.from('destinations')
+			.select('id, name')
+			.order('name');
+
+		if (destinationsError) {
+			console.error('Error fetching destinations:', destinationsError);
+		}
+
+		// Fetch outbound dates with pricing
+		const { data: outboundDates, error: outboundDatesError } = await supabase
+			.from('outbound_dates')
+			.select('id, start_date, end_date, price, destination_id')
+			.order('start_date');
+
+		if (outboundDatesError) {
+			console.error('Error fetching outbound dates:', outboundDatesError);
+		}
+
+		// Fetch umrah seasons
+		const { data: umrahSeasons, error: umrahSeasonsError } = await supabase
+			.from('umrah_seasons')
+			.select('id, name')
+			.eq('is_active', true)
+			.order('name');
+
+		if (umrahSeasonsError) {
+			console.error('Error fetching umrah seasons:', umrahSeasonsError);
+		}
+
+		// Fetch umrah categories
+		const { data: umrahCategories, error: umrahCategoriesError } = await supabase
+			.from('umrah_categories')
+			.select('id, name, description, price_range, duration_days')
+			.eq('is_active', true)
+			.order('name');
+
+		if (umrahCategoriesError) {
+			console.error('Error fetching umrah categories:', umrahCategoriesError);
+		}
+
+		// Debug: log data untuk troubleshooting
+		console.log('=== SERVER DEBUG ===');
+		console.log('Fetched outbound dates:', JSON.stringify(outboundDates, null, 2));
+		console.log('Fetched destinations:', JSON.stringify(destinations, null, 2));
+		console.log('Fetched umrah seasons:', JSON.stringify(umrahSeasons, null, 2));
+		console.log('Fetched umrah categories:', JSON.stringify(umrahCategories, null, 2));
+		console.log('=====================');
+
+		// Fetch sales consultants for destinations
+		const { data: consultants, error: consultantsError } = await supabase
+			.from('sales_consultant')
+			.select('id, name, whatsapp_number')
+			.order('name');
+
+		if (consultantsError) {
+			console.error('Error fetching consultants:', consultantsError);
+		}
+
+		return {
+			branches: branches || [],
+			packageTypes: packageTypes || [],
+			destinations: destinations || [],
+			outboundDates: outboundDates || [],
+			umrahSeasons: umrahSeasons || [],
+			umrahCategories: umrahCategories || [],
+			consultants: consultants || []
+		};
+	} catch (error) {
+		console.error('Error in main page load:', error);
+		return {
+			branches: [],
+			packageTypes: [],
+			destinations: [],
+			outboundDates: [],
+			umrahSeasons: [],
+			umrahCategories: [],
+			consultants: []
+		};
+	}
 }
 
 export const actions = {
 	default: async ({ request }) => {
 		try {
-			const form = await request.formData();
-			const gelaran = form.get('gelaran')?.toString().trim();
-			const nama = form.get('nama')?.toString().trim();
-			const telefon = form.get('telefon')?.toString().trim();
-			const cawangan = form.get('cawangan')?.toString().trim();
-			const pakej = form.get('pakej')?.toString().trim();
-			const musim = form.get('musim')?.toString().trim();
-			const kategori = form.get('kategori')?.toString().trim();
-			const pelancongan = form.get('pelancongan')?.toString().trim();
-			const tarikh = form.get('tarikh')?.toString().trim();
+			const formData = await request.formData();
+			
+			const maklumat = {
+				gelaran: formData.get('gelaran'),
+				nama: formData.get('nama'),
+				nokp: formData.get('nokp'),
+				telefon: formData.get('telefon'),
+				email: formData.get('email'),
+				alamat: formData.get('alamat'),
+				poskod: formData.get('poskod'),
+				negeri: formData.get('negeri'),
+				bandar: formData.get('bandar'),
+				branch_id: formData.get('cawangan'),
+				destination_id: formData.get('destinasi'),
+				outbound_date_id: formData.get('tarikh_berlepas'),
+				umrah_season_id: formData.get('musim_umrah'),
+				umrah_category_id: formData.get('kategori_umrah'),
+				consultant_id: formData.get('konsultan'),
+				package_id: formData.get('pakej'),
+				bilangan: parseInt(formData.get('bilangan')) || 0,
+				catatan: formData.get('catatan')
+			};
 
-		// Cari package_type berdasarkan ID paket
-		const { data: packageTypeData } = await supabaseAdmin.from('package_types').select('id, name').eq('id', pakej).maybeSingle();
-		if (!packageTypeData) {
-			return { success: false, error: 'Pakej tidak sah.' };
-		}
+			// Debug: log data yang akan disimpan
+			console.log('=== SAVING DATA ===');
+			console.log('Form Data:', maklumat);
+			console.log('==================');
 
-		const isUmrah = (packageTypeData.name || '').toLowerCase() === 'umrah';
-		if (!gelaran || !nama || !telefon || !cawangan) {
-			return { success: false, error: 'Sila lengkapkan medan wajib.' };
-		}
-		if (isUmrah) {
-			if (!musim) return { success: false, error: 'Sila pilih Musim Umrah.' };
-		} else {
-			if (!pelancongan) return { success: false, error: 'Sila pilih Pelancongan.' };
-			if (!tarikh) return { success: false, error: 'Sila pilih Tarikh Pelancongan.' };
-		}
-
-		let adminWa = '';
-		
-		if (isUmrah) {
-			// Untuk paket Umrah, gunakan nomor WhatsApp branch
-			const { data: branch } = await supabaseAdmin.from('branches').select('whatsapp_number').eq('id', cawangan).maybeSingle();
-			adminWa = branch?.whatsapp_number ?? '';
-		} else {
-			// Untuk paket outbound, gunakan nomor WhatsApp sales consultant destinasi
-			const { data: destData } = await supabaseAdmin.from('destinations').select('sales_consultant_id').eq('id', pelancongan).maybeSingle();
-			if (destData?.sales_consultant_id) {
-				const { data: consultantData } = await supabaseAdmin.from('sales_consultant').select('whatsapp_number').eq('id', destData.sales_consultant_id).maybeSingle();
-				adminWa = consultantData?.whatsapp_number ?? '';
+			// Validate required fields (only validate non-nullable fields)
+			const requiredFields = ['gelaran', 'nama', 'nokp', 'telefon', 'email', 'alamat', 'poskod', 'negeri', 'bandar'];
+			for (const field of requiredFields) {
+				if (!maklumat[field]) {
+					console.error(`Missing required field: ${field}`);
+					return fail(400, {
+						error: `Field ${field} is required`,
+						form: maklumat
+					});
+				}
 			}
-		}
 
-		await supabaseAdmin.from('leads').insert({
-			title: gelaran,
-			full_name: nama,
-			phone: telefon,
-			branch_id: cawangan,
-			package_type_id: packageTypeData.id,
-			season_id: isUmrah ? musim : null,
-			category_id: isUmrah ? (kategori || null) : null,
-			destination_id: !isUmrah ? pelancongan : null,
-			outbound_date_id: !isUmrah ? tarikh : null
-		});
-
-		// Ambil nama destinasi dan tarikh untuk pesan WhatsApp
-		let destinationName = '';
-		let tourDateRange = '';
-		let seasonName = '';
-		let categoryName = '';
-		
-		if (!isUmrah) {
-			const { data: destData } = await supabaseAdmin.from('destinations').select('name').eq('id', pelancongan).maybeSingle();
-			const { data: dateData } = await supabaseAdmin.from('outbound_dates').select('start_date, end_date').eq('id', tarikh).maybeSingle();
-			destinationName = destData?.name || '';
-			if (dateData?.start_date && dateData?.end_date) {
-				tourDateRange = `${dateData.start_date} - ${dateData.end_date}`;
+			// Validate bilangan is a positive number
+			if (!maklumat.bilangan || maklumat.bilangan <= 0) {
+				console.error('Invalid bilangan:', maklumat.bilangan);
+				return fail(400, {
+					error: 'Bilangan peserta harus lebih dari 0',
+					form: maklumat
+				});
 			}
-		} else {
-			// Ambil nama season dan kategori untuk pesan WhatsApp
-			if (musim) {
-				const { data: seasonData } = await supabaseAdmin.from('umrah_seasons').select('name').eq('id', musim).maybeSingle();
-				seasonName = seasonData?.name || '';
-			}
-			if (kategori) {
-				const { data: categoryData } = await supabaseAdmin.from('umrah_categories').select('name').eq('id', kategori).maybeSingle();
-				categoryName = categoryData?.name || '';
-			}
-		}
 
-		const extra = isUmrah
-			? (seasonName ? `Musim: ${seasonName}${categoryName ? `, Kategori: ${categoryName}` : ''}` : '')
-			: `Destinasi: ${destinationName}${tourDateRange ? `, Tarikh: ${tourDateRange}` : ''}`;
-		const msg = encodeURIComponent(`Assalamualaikum, saya ${gelaran} ${nama}. Ingin daftar ${packageTypeData.name}. No: ${telefon}. ${extra}`);
-		const phone = (adminWa || '').replace(/[^0-9]/g, '');
-		const waUrl = phone ? `https://wa.me/${phone}?text=${msg}` : `https://wa.me/?text=${msg}`;
+			// Validate UUID fields if provided
+			const uuidFields = ['branch_id', 'destination_id', 'outbound_date_id', 'consultant_id', 'package_id', 'umrah_season_id', 'umrah_category_id'];
+			for (const field of uuidFields) {
+				if (maklumat[field] && maklumat[field] === '') {
+					maklumat[field] = null; // Convert empty string to null for UUID fields
+				}
+			}
 
-		throw redirect(303, waUrl);
+			// Mulai transaksi database
+			const { data: bookingData, error: bookingError } = await supabase
+				.from('bookings')
+				.insert([maklumat])
+				.select();
+
+			if (bookingError) {
+				console.error('=== DATABASE ERROR ===');
+				console.error('Error inserting booking:', bookingError);
+				console.error('Error message:', bookingError.message);
+				console.error('Error details:', bookingError.details);
+				console.error('Error hint:', bookingError.hint);
+				console.error('Error code:', bookingError.code);
+				console.error('======================');
+				return fail(500, {
+					error: `Failed to save data: ${bookingError.message}`,
+					form: maklumat
+				});
+			}
+
+			// Ambil ID booking yang baru dibuat
+			const bookingId = bookingData[0].id;
+
+			// Simpan data peserta
+			const pesertaData = [];
+			for (let i = 1; i <= maklumat.bilangan; i++) {
+				const namaPeserta = formData.get(`peserta_nama_${i}`);
+				const nokpPeserta = formData.get(`peserta_nokp_${i}`);
+				
+				if (namaPeserta && nokpPeserta) {
+					pesertaData.push({
+						booking_id: bookingId,
+						nama: namaPeserta,
+						nokp: nokpPeserta
+					});
+				}
+			}
+
+			// Insert data peserta jika ada
+			if (pesertaData.length > 0) {
+				const { error: pesertaError } = await supabase
+					.from('members_booking')
+					.insert(pesertaData);
+
+				if (pesertaError) {
+					console.error('Error inserting members:', pesertaError);
+					// Note: Kita tidak rollback booking karena sudah berhasil disimpan
+					// Members bisa ditambahkan nanti melalui sistem yang terpisah
+				}
+			}
+
+			console.log(`Successfully saved booking with ID: ${bookingId}`);
+			console.log(`Saved ${pesertaData.length} member records`);
+
+			return {
+				success: true,
+				message: 'Maklumat berjaya dihantar!'
+			};
+
 		} catch (error) {
-			// Redirect bukan error, jangan log
-			if (error?.status === 303) {
-				throw error; // Re-throw redirect
-			}
-			console.error('Error in form submission:', error);
-			return { success: false, error: 'Ralat sistem. Sila cuba lagi.' };
+			console.error('Error in main form submission:', error);
+			return fail(500, {
+				error: 'Internal server error',
+				form: {}
+			});
 		}
 	}
 };
-
-
