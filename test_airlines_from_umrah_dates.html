@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Airlines from umrah_dates</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .airline { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }
+        .airline h3 { margin: 0 0 10px 0; color: #333; }
+        .dates { margin-left: 20px; }
+        .date-item { background: #f9f9f9; padding: 8px; margin: 5px 0; border-radius: 3px; }
+        .price { font-weight: bold; color: #e74c3c; }
+        .season { color: #3498db; font-style: italic; }
+        .category { color: #27ae60; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Test: Airlines dari umrah_dates</h1>
+    <p>Halaman ini menampilkan data airline yang diambil langsung dari tabel umrah_dates</p>
+    
+    <div id="airlines-container">
+        <p>Loading data...</p>
+    </div>
+
+    <script>
+        // Data airline yang diambil dari umrah_dates
+        const airlinesData = [
+            {
+                id: "593a70d1-5a7d-49b2-9730-4d6f07d22949",
+                name: "Malaysia Airlines",
+                total_dates: 205
+            },
+            {
+                id: "b0023b9b-d3a3-48f0-82ca-d1e08b31db05",
+                name: "Qatar Airways",
+                total_dates: 3
+            },
+            {
+                id: "b1630fbc-693b-47ee-9d2a-e2b5d4996bc2",
+                name: "Saudi Airlines",
+                total_dates: 42
+            },
+            {
+                id: "ddc5a097-cd4e-4ab7-ba89-f57d54cb118f",
+                name: "Turkish Airlines",
+                total_dates: 6
+            }
+        ];
+
+        // Sample data untuk setiap airline
+        const airlineDetails = {
+            "Malaysia Airlines": [
+                {
+                    start_date: "2025-09-12",
+                    end_date: "2025-09-22",
+                    category: "Premium Selesa",
+                    season: "Umrah Cuti Sekolah",
+                    quadruple: 13490,
+                    triple: 14590,
+                    double: 16590
+                },
+                {
+                    start_date: "2025-09-19",
+                    end_date: "2025-09-29",
+                    category: "Safwah Dallah",
+                    season: "Umrah Musim Biasa",
+                    quintuple: 11590,
+                    quadruple: 11890,
+                    triple: 12690,
+                    double: 14590
+                }
+            ],
+            "Saudi Airlines": [
+                {
+                    start_date: "2025-09-12",
+                    end_date: "2025-09-23",
+                    category: "Standard Jimat",
+                    season: "Umrah Cuti Sekolah",
+                    quadruple: 9290,
+                    triple: 9790,
+                    double: 10990
+                }
+            ],
+            "Qatar Airways": [
+                {
+                    start_date: "2025-09-12",
+                    end_date: "2025-09-22",
+                    category: "Sederhana",
+                    season: "Umrah Cuti Sekolah",
+                    quintuple: 8390,
+                    quadruple: 8590,
+                    triple: 8890,
+                    double: 9590
+                }
+            ]
+        };
+
+        function displayAirlines() {
+            const container = document.getElementById('airlines-container');
+            container.innerHTML = '';
+
+            airlinesData.forEach(airline => {
+                const airlineDiv = document.createElement('div');
+                airlineDiv.className = 'airline';
+                
+                const details = airlineDetails[airline.name] || [];
+                
+                airlineDiv.innerHTML = `
+                    <h3>${airline.name}</h3>
+                    <p><strong>Total Tanggal Tersedia:</strong> ${airline.total_dates}</p>
+                    <div class="dates">
+                        <h4>Contoh Tanggal & Harga:</h4>
+                        ${details.map(date => `
+                            <div class="date-item">
+                                <div><strong>Tanggal:</strong> ${date.start_date} - ${date.end_date}</div>
+                                <div><strong>Kategori:</strong> <span class="category">${date.category}</span></div>
+                                <div><strong>Musim:</strong> <span class="season">${date.season}</span></div>
+                                <div><strong>Harga:</strong>
+                                    ${date.quintuple ? `<span class="price">Quintuple: RM${date.quintuple}</span> ` : ''}
+                                    ${date.quadruple ? `<span class="price">Quadruple: RM${date.quadruple}</span> ` : ''}
+                                    ${date.triple ? `<span class="price">Triple: RM${date.triple}</span> ` : ''}
+                                    ${date.double ? `<span class="price">Double: RM${date.double}</span>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                        ${details.length === 0 ? '<p><em>Tidak ada detail tanggal tersedia</em></p>' : ''}
+                    </div>
+                `;
+                
+                container.appendChild(airlineDiv);
+            });
+        }
+
+        // Tampilkan data saat halaman dimuat
+        displayAirlines();
+    </script>
+</body>
+</html>

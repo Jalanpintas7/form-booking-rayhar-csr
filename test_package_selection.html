@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Package Selection</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .field { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Test Package Selection</h1>
+    
+    <div class="field">
+        <label for="pakej">Jenis Paket<span style="color: red;">*</span></label>
+        <select id="pakej" name="pakej" required onchange="handlePackageChange()">
+            <option value="">Pilihan Jenis Paket</option>
+            <option value="test-package-1">Paket Pelancongan</option>
+            <option value="test-package-2">Paket Umrah</option>
+            <option value="test-package-3">Paket Lain</option>
+        </select>
+    </div>
+    
+    <div class="debug">
+        <h3>Debug Info:</h3>
+        <div id="debug-info">Pilih paket untuk melihat debug info...</div>
+    </div>
+    
+    <script>
+        function handlePackageChange() {
+            const select = document.getElementById('pakej');
+            const selectedValue = select.value;
+            const selectedText = select.options[select.selectedIndex].text;
+            
+            const debugInfo = document.getElementById('debug-info');
+            debugInfo.innerHTML = `
+                <p><strong>Selected Value:</strong> ${selectedValue}</p>
+                <p><strong>Selected Text:</strong> ${selectedText}</p>
+                <p><strong>Value Type:</strong> ${typeof selectedValue}</p>
+                <p><strong>Is Empty:</strong> ${selectedValue === ''}</p>
+            `;
+            
+            console.log('Package selected:', {
+                value: selectedValue,
+                text: selectedText,
+                type: typeof selectedValue
+            });
+        }
+        
+        // Test with some sample data
+        const testPackageTypes = [
+            { id: 'test-package-1', name: 'Paket Pelancongan' },
+            { id: 'test-package-2', name: 'Paket Umrah' },
+            { id: 'test-package-3', name: 'Paket Lain' }
+        ];
+        
+        console.log('Test Package Types:', testPackageTypes);
+    </script>
+</body>
+</html>
