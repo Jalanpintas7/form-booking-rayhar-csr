@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Room Options - Simple</title>
+    <style>
+        .disabled-option {
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .enabled-option {
+            color: #000;
+            cursor: pointer;
+        }
+        select {
+            width: 300px;
+            padding: 8px;
+            margin: 10px 0;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Room Options - Selalu Tampil, Disabled jika Null</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Semua tipe bilik tersedia</h3>
+        <select id="test1">
+            <option value="">Pilih Jenis Bilik</option>
+        </select>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 2: Beberapa nilai null</h3>
+        <select id="test2">
+            <option value="">Pilih Jenis Bilik</option>
+        </select>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 3: Semua nilai null</h3>
+        <select id="test3">
+            <option value="">Pilih Jenis Bilik</option>
+        </select>
+    </div>
+
+    <script>
+        // Simulasi fungsi formatPrice
+        function formatPrice(price) {
+            return price.toLocaleString('en-MY');
+        }
+
+        // Fungsi buildRoomOptionsFromRecord yang sudah diperbaiki
+        function buildRoomOptionsFromRecord(record) {
+            if (!record || typeof record !== 'object') return [];
+            const options = [];
+            
+            // Build options from actual price columns in umrah_dates
+            // Double - selalu tampil, disabled jika null/0
+            options.push({ 
+                value: 'double', 
+                label: `Bilik Double/Twin ${record.double && record.double > 0 ? `(RM ${formatPrice(record.double)})` : '(Tidak Tersedia)'}`,
+                disabled: !record.double || record.double <= 0
+            });
+            
+            // Triple - selalu tampil, disabled jika null/0
+            options.push({ 
+                value: 'triple', 
+                label: `Bilik Triple ${record.triple && record.triple > 0 ? `(RM ${formatPrice(record.triple)})` : '(Tidak Tersedia)'}`,
+                disabled: !record.triple || record.triple <= 0
+            });
+            
+            // Quadruple - selalu tampil, disabled jika null/0
+            options.push({ 
+                value: 'quad', 
+                label: `Bilik Quad ${record.quadruple && record.quadruple > 0 ? `(RM ${formatPrice(record.quadruple)})` : '(Tidak Tersedia)'}`,
+                disabled: !record.quadruple || record.quadruple <= 0
+            });
+            
+            // Quintuple - selalu tampil, disabled jika null/0
+            options.push({ 
+                value: 'quintuple', 
+                label: `Bilik Quintuple ${record.quintuple && record.quintuple > 0 ? `(RM ${formatPrice(record.quintuple)})` : '(Tidak Tersedia)'}`,
+                disabled: !record.quintuple || record.quintuple <= 0
+            });
+            
+            // Single - selalu tampil, disabled jika null/0
+            if (record.single) {
+                options.push({ 
+                    value: 'single', 
+                    label: `Bilik Single ${record.single > 0 ? `(RM ${formatPrice(record.single)})` : '(Tidak Tersedia)'}`,
+                    disabled: record.single <= 0
+                });
+            }
+            
+            return options;
+        }
+
+        // Test data
+        const testRecord1 = {
+            id: "test-1",
+            double: 14590,
+            triple: 12690,
+            quadruple: 11890,
+            quintuple: 11590,
+            single: 18000
+        };
+
+        const testRecord2 = {
+            id: "test-2",
+            double: 12000,
+            triple: 11000,
+            quadruple: null,
+            quintuple: 9500,
+            single: null
+        };
+
+        const testRecord3 = {
+            id: "test-3",
+            double: null,
+            triple: null,
+            quadruple: null,
+            quintuple: null,
+            single: null
+        };
+
+        // Fungsi untuk mengisi select
+        function populateSelect(selectId, options) {
+            const select = document.getElementById(selectId);
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.textContent = opt.label;
+                option.disabled = opt.disabled;
+                option.className = opt.disabled ? 'disabled-option' : 'enabled-option';
+                select.appendChild(option);
+            });
+        }
+
+        // Jalankan test
+        console.log('=== TESTING ROOM OPTIONS FUNCTION ===');
+        
+        const result1 = buildRoomOptionsFromRecord(testRecord1);
+        const result2 = buildRoomOptionsFromRecord(testRecord2);
+        const result3 = buildRoomOptionsFromRecord(testRecord3);
+        
+        console.log('Result 1 (All available):', result1);
+        console.log('Result 2 (Some null):', result2);
+        console.log('Result 3 (All null):', result3);
+
+        // Populate selects
+        populateSelect('test1', result1);
+        populateSelect('test2', result2);
+        populateSelect('test3', result3);
+    </script>
+</body>
+</html> 

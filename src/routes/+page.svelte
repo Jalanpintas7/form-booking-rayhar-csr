@@ -53,6 +53,7 @@
 	// Tailwind utility class constants (no external CSS)
 	const controlClass = 'h-11 px-3 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none focus:border-[#942392] focus:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]';
 	const selectClass = 'h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none appearance-none bg-no-repeat bg-[right_12px_center] bg-[length:16px] focus:border-[#942392] focus:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] bg-[url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6,9 12,15 18,9\'%3e%3c/polyline%3e%3c/svg%3e")]';
+	const disabledOptionClass = 'text-gray-400 cursor-not-allowed';
 	const labelClass = 'text-[13px] font-semibold text-gray-700';
 	const fieldClass = 'flex flex-col gap-2';
 	const actionsClass = 'col-span-full mt-2';
@@ -110,15 +111,37 @@
 	let selectedTarikhUmrah = $state('');
 	let perluPartnerBilik = $state(false);
 	let selectedRoomType = $state('');
+	let selectedCawangan = $state('');
+	let selectedKonsultan = $state('');
 	let dynamicBandarList = $state([]);
 	let dynamicNegeriList = $state([]);
+	let selectedGelaran = $state('');
+	let isGelaranOpen = $state(false);
+	let isPakejOpen = $state(false);
+	let isDestinasiOpen = $state(false);
+	let isMusimUmrahOpen = $state(false);
+	let isKategoriUmrahOpen = $state(false);
+	let isAirlineOpen = $state(false);
+	let isTarikhUmrahOpen = $state(false);
+	let isTarikhOpen = $state(false);
+	let isPilihBilikOpen = $state(false);
+	let isBilanganOpen = $state(false);
+	let isNegeriOpen = $state(false);
+	let isBandarOpen = $state(false);
+	let isCawanganOpen = $state(false);
+	let isKonsultanOpen = $state(false);
+	
+	// State untuk filtered data search
+	let filteredBranches = $state([]);
+	let filteredDestinations = $state([]);
 
 	// Fallback static options if record does not include room info
 	const fallbackRoomOptions = [
-		{ value: 'single', label: 'Bilik Single' },
-		{ value: 'double', label: 'Bilik Double/Twin' },
-		{ value: 'triple', label: 'Bilik Triple' },
-		{ value: 'quad', label: 'Bilik Quad' }
+		{ value: 'single', label: 'Bilik Single (Tidak Tersedia)', disabled: true },
+		{ value: 'double', label: 'Bilik Double/Twin (Tidak Tersedia)', disabled: true },
+		{ value: 'triple', label: 'Bilik Triple (Tidak Tersedia)', disabled: true },
+		{ value: 'quad', label: 'Bilik Quad (Tidak Tersedia)', disabled: true },
+		{ value: 'quintuple', label: 'Bilik Quintuple (Tidak Tersedia)', disabled: true }
 	];
 
 	// Derived room options from selected umrah date record
@@ -127,19 +150,45 @@
 	function buildRoomOptionsFromRecord(record) {
 		if (!record || typeof record !== 'object') return [];
 		const options = [];
+		
 		// Build options from actual price columns in umrah_dates
-		if (typeof record.double === 'number' && record.double > 0) {
-			options.push({ value: 'double', label: `Bilik Double/Twin (RM ${formatPrice(record.double)})` });
+		// Double - selalu tampil, disabled jika null/0
+		options.push({ 
+			value: 'double', 
+			label: `Bilik Double/Twin ${record.double && record.double > 0 ? `(RM ${formatPrice(record.double)})` : '(Tidak Tersedia)'}`,
+			disabled: !record.double || record.double <= 0
+		});
+		
+		// Triple - selalu tampil, disabled jika null/0
+		options.push({ 
+			value: 'triple', 
+			label: `Bilik Triple ${record.triple && record.triple > 0 ? `(RM ${formatPrice(record.triple)})` : '(Tidak Tersedia)'}`,
+			disabled: !record.triple || record.triple <= 0
+		});
+		
+		// Quadruple - selalu tampil, disabled jika null/0
+		options.push({ 
+			value: 'quad', 
+			label: `Bilik Quad ${record.quadruple && record.quadruple > 0 ? `(RM ${formatPrice(record.quadruple)})` : '(Tidak Tersedia)'}`,
+			disabled: !record.quadruple || record.quadruple <= 0
+		});
+		
+		// Quintuple - selalu tampil, disabled jika null/0
+		options.push({ 
+			value: 'quintuple', 
+			label: `Bilik Quintuple ${record.quintuple && record.quintuple > 0 ? `(RM ${formatPrice(record.quintuple)})` : '(Tidak Tersedia)'}`,
+			disabled: !record.quintuple || record.quintuple <= 0
+		});
+		
+		// Single - selalu tampil, disabled jika null/0
+		if (record.single) {
+			options.push({ 
+				value: 'single', 
+				label: `Bilik Single ${record.single > 0 ? `(RM ${formatPrice(record.single)})` : '(Tidak Tersedia)'}`,
+				disabled: record.single <= 0
+			});
 		}
-		if (typeof record.triple === 'number' && record.triple > 0) {
-			options.push({ value: 'triple', label: `Bilik Triple (RM ${formatPrice(record.triple)})` });
-		}
-		if (typeof record.quadruple === 'number' && record.quadruple > 0) {
-			options.push({ value: 'quad', label: `Bilik Quad (RM ${formatPrice(record.quadruple)})` });
-		}
-		if (typeof record.single === 'number' && record.single > 0) {
-			options.push({ value: 'single', label: `Bilik Single (RM ${formatPrice(record.single)})` });
-		}
+		
 		return options;
 	}
 	// Recompute dynamic options when selectedTarikhUmrah changes
@@ -148,6 +197,7 @@
 			dynamicRoomOptions = [];
 			return;
 		}
+		
 		const rec = filteredUmrahDates.find(d => String(d.id) === String(selectedTarikhUmrah));
 		const built = buildRoomOptionsFromRecord(rec);
 		dynamicRoomOptions = built.length > 0 ? built : fallbackRoomOptions;
@@ -176,7 +226,8 @@
 	// State untuk form utama (untuk sync dengan Peserta 1)
 	let mainFormData = $state({
 		nama: '',
-		nokp: ''
+		nokp: '',
+		gelaran: ''
 	});
 	
 	// Effect untuk mengontrol visibility berdasarkan pilihan paket
@@ -621,15 +672,45 @@
 			}}>
 			<div class="flex flex-col gap-2">
 				<label class="text-[13px] font-semibold text-gray-700" for="gelaran">Gelaran<span class="text-red-500 ml-1">*</span></label>
-				<select class={selectClass} id="gelaran" name="gelaran" required>
-					<option value="">Pilih Gelaran</option>
-					<option>Cik</option>
-					<option>Encik</option>
-					<option>Puan</option>
-					<option>Tuan</option>
-					<option>Datin</option>
-					<option>Dato</option>
-				</select>
+				<div class="relative">
+					<div 
+						class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+						onclick={() => isGelaranOpen = !isGelaranOpen}
+						onblur={() => setTimeout(() => isGelaranOpen = false, 200)}
+					>
+						<span class={selectedGelaran ? 'text-gray-900' : 'text-gray-500'}>
+							{selectedGelaran || 'Pilih Gelaran'}
+						</span>
+						<svg 
+							class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isGelaranOpen ? 'rotate-180' : ''}`}
+							fill="none" 
+							stroke="currentColor" 
+							viewBox="0 0 24 24"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+						</svg>
+					</div>
+					
+					{#if isGelaranOpen}
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<ul class="py-1">
+								{#each ['Cik', 'Encik', 'Puan', 'Tuan', 'Datin', 'Dato'] as gelaran}
+									<li 
+										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] {selectedGelaran === gelaran ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}"
+										onclick={() => {
+											selectedGelaran = gelaran;
+											mainFormData.gelaran = gelaran;
+											isGelaranOpen = false;
+										}}
+									>
+										{gelaran}
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+				</div>
+				<input type="hidden" name="gelaran" value={selectedGelaran} required />
 			</div>
 
 			<div class="flex flex-col gap-2">
@@ -690,7 +771,7 @@
 			</div>
 
 			<div class="flex flex-col gap-2">
-				<label class="text-[13px] font-semibold text-gray-700" for="alamat">ALAMAT<span class="text-red-500 ml-1">*</span></label>
+				<label class="text-[13px] font-semibold text-gray-700" for="alamat">Alamat<span class="text-red-500 ml-1">*</span></label>
 				<input 
 					id="alamat" 
 					name="alamat" 
@@ -765,19 +846,63 @@
 
 			<div class="flex flex-col gap-2">
 				<label class="text-[13px] font-semibold text-gray-700" for="negeri">Negeri<span class="text-red-500 ml-1">*</span></label>
-				<select class={`${selectClass} ${!(Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`} id="negeri" name="negeri" bind:value={selectedNegeri} required disabled={!(Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0)} onchange={() => {
-					// Only clear postcode error if negeri is selected and postcode is valid
-					if (selectedNegeri && poskodError && poskodValidated && !poskodLoading) {
-						poskodError = '';
-					}
-				}}>
-					<option value="">{!(Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0) ? 'Sila masukkan poskod yang sah terlebih dahulu' : 'Select Negeri'}</option>
-					{#if Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0}
-						{#each dynamicNegeriList as n}
-							<option value={n}>{n}</option>
-						{/each}
+				<div class="relative">
+					<div 
+						class={`h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!(Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+						onclick={() => {
+							if (Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0) {
+								isNegeriOpen = !isNegeriOpen;
+							}
+						}}
+						onblur={() => setTimeout(() => isNegeriOpen = false, 200)}
+					>
+						<span class={selectedNegeri ? 'text-gray-900' : 'text-gray-500'}>
+							{selectedNegeri || (Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0 ? 'Select Negeri' : 'Sila masukkan poskod yang sah terlebih dahulu')}
+						</span>
+						<svg 
+							class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isNegeriOpen ? 'rotate-180' : ''} ${!(Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0) ? 'opacity-50' : ''}`}
+							fill="none" 
+							stroke="currentColor" 
+							viewBox="0 0 24 24"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+						</svg>
+					</div>
+					
+					{#if isNegeriOpen && Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0}
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<ul class="py-1">
+								<li 
+									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+									onclick={() => {
+										selectedNegeri = '';
+										selectedBandar = '';
+										isNegeriOpen = false;
+									}}
+								>
+									Select Negeri
+								</li>
+								{#each dynamicNegeriList as n}
+									<li 
+										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedNegeri === n ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+										onclick={() => {
+											selectedNegeri = n;
+											selectedBandar = '';
+											// Only clear postcode error if negeri is selected and poskod is valid
+											if (selectedNegeri && poskodError && poskodValidated && !poskodLoading) {
+												poskodError = '';
+											}
+											isNegeriOpen = false;
+										}}
+									>
+										{n}
+									</li>
+								{/each}
+							</ul>
+						</div>
 					{/if}
-				</select>
+				</div>
+				<input type="hidden" name="negeri" value={selectedNegeri} required />
 				{#if !(Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0)}
 					<div class="text-gray-500 text-xs mt-1">Negeri akan dipilih secara automatik selepas poskod yang sah dimasukkan</div>
 				{/if}
@@ -785,19 +910,65 @@
 
 			<div class="flex flex-col gap-2">
 				<label class="text-[13px] font-semibold text-gray-700" for="bandar">Bandar<span class="text-red-500 ml-1">*</span></label>
-				<select class={`${selectClass} ${!selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`} id="bandar" name="bandar" required disabled={!selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0)} bind:value={selectedBandar} onchange={() => {
-					// Only clear postcode error if bandar is selected and postcode is valid
-					if (selectedBandar && poskodError && poskodValidated && !poskodLoading) {
-						poskodError = '';
-					}
-				}}>
-					<option value="">{!selectedNegeri ? 'Sila pilih negeri terlebih dahulu' : !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) ? 'Sila masukkan poskod yang sah terlebih dahulu' : 'Select Bandar'}</option>
-					{#if Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0}
-						{#each dynamicBandarList as b}
-							<option value={b}>{b}</option>
-						{/each}
+				<div class="relative">
+					<div 
+						class={`h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+						onclick={() => {
+							if (selectedNegeri && Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) {
+								isBandarOpen = !isBandarOpen;
+							}
+						}}
+						onblur={() => setTimeout(() => isBandarOpen = false, 200)}
+					>
+						<span class={selectedBandar ? 'text-gray-900' : 'text-gray-500'}>
+							{selectedBandar || (() => {
+								if (!selectedNegeri) return 'Sila pilih negeri terlebih dahulu';
+								if (!(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0)) return 'Sila masukkan poskod yang sah terlebih dahulu';
+								return 'Select Bandar';
+							})()}
+						</span>
+						<svg 
+							class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isBandarOpen ? 'rotate-180' : ''} ${!selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) ? 'opacity-50' : ''}`}
+							fill="none" 
+							stroke="currentColor" 
+							viewBox="0 0 24 24"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+						</svg>
+					</div>
+					
+					{#if isBandarOpen && selectedNegeri && Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0}
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<ul class="py-1">
+								<li 
+									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+									onclick={() => {
+										selectedBandar = '';
+										isBandarOpen = false;
+									}}
+								>
+									Select Bandar
+								</li>
+								{#each dynamicBandarList as b}
+									<li 
+										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedBandar === b ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+										onclick={() => {
+											selectedBandar = b;
+											// Only clear postcode error if bandar is selected and poskod is valid
+											if (selectedBandar && poskodError && poskodValidated && !poskodLoading) {
+												poskodError = '';
+											}
+											isBandarOpen = false;
+										}}
+									>
+										{b}
+									</li>
+								{/each}
+							</ul>
+						</div>
 					{/if}
-				</select>
+				</div>
+				<input type="hidden" name="bandar" value={selectedBandar} required />
 				{#if !selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0)}
 					<div class="text-gray-500 text-xs mt-1">
 						{!selectedNegeri ? 'Bandar akan dipilih secara automatik selepas negeri dipilih' : 'Bandar akan dipilih secara automatik selepas poskod yang sah dimasukkan'}
@@ -807,12 +978,123 @@
 
 			<div class="flex flex-col gap-2">
 				<label class="text-[13px] font-semibold text-gray-700" for="cawangan">Cawangan<span class="text-red-500 ml-1">*</span></label>
-				<select class={selectClass} id="cawangan" name="cawangan" required>
-					<option value="">Pilih Cawangan Anda</option>
-					{#each branches as b}
-						<option value={b.id}>{b.name}</option>
-					{/each}
-				</select>
+				<div class="relative">
+					<div 
+						class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+						onclick={() => isCawanganOpen = !isCawanganOpen}
+						onblur={() => setTimeout(() => isCawanganOpen = false, 200)}
+					>
+						<span class={selectedCawangan ? 'text-gray-900' : 'text-gray-500'}>
+							{selectedCawangan ? branches.find(b => b.id === selectedCawangan)?.name || 'Pilih Cawangan Anda' : 'Pilih Cawangan Anda'}
+						</span>
+						<svg 
+							class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isCawanganOpen ? 'rotate-180' : ''}`}
+							fill="none" 
+							stroke="currentColor" 
+							viewBox="0 0 24 24"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+						</svg>
+					</div>
+					
+					{#if isCawanganOpen}
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-48 overflow-y-auto">
+							<!-- Search input untuk cawangan di atas dropdown -->
+							<div class="sticky top-0 bg-white p-3 border-b border-gray-200 rounded-t-[10px]">
+								<input 
+									type="text" 
+									placeholder="Cari cawangan..." 
+									class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-[#942392] focus:ring-1 focus:ring-[#942392]"
+									oninput={(e) => {
+										const searchTerm = e.target.value.toLowerCase();
+										if (searchTerm === '') {
+											filteredBranches = [];
+										} else {
+											// Filter branches berdasarkan search term secara real-time
+											filteredBranches = branches.filter(b => 
+												b.name.toLowerCase().includes(searchTerm)
+											);
+										}
+									}}
+								/>
+							</div>
+							<ul class="py-1">
+								<li 
+									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+									onclick={() => {
+										selectedCawangan = '';
+										isCawanganOpen = false;
+									}}
+								>
+									Pilih Cawangan Anda
+								</li>
+								{#each (filteredBranches.length > 0 ? filteredBranches : branches) as b}
+									<li 
+										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedCawangan === b.id ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+										onclick={() => {
+											selectedCawangan = b.id;
+											isCawanganOpen = false;
+										}}
+									>
+										{b.name}
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+				</div>
+				<input type="hidden" name="cawangan" value={selectedCawangan} required />
+			</div>
+
+			<div class="flex flex-col gap-2">
+				<label class="text-[13px] font-semibold text-gray-700" for="konsultan">Sales Consultant</label>
+				<div class="relative">
+					<div 
+						class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+						onclick={() => isKonsultanOpen = !isKonsultanOpen}
+						onblur={() => setTimeout(() => isKonsultanOpen = false, 200)}
+					>
+						<span class={selectedKonsultan ? 'text-gray-900' : 'text-gray-500'}>
+							{selectedKonsultan ? consultants.find(c => c.id === selectedKonsultan)?.name || 'Pilih Sales Consultant' : 'Pilih Sales Consultant'}
+						</span>
+						<svg 
+							class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isKonsultanOpen ? 'rotate-180' : ''}`}
+							fill="none" 
+							stroke="currentColor" 
+							viewBox="0 0 24 24"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+						</svg>
+					</div>
+					
+					{#if isKonsultanOpen}
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<ul class="py-1">
+								<li 
+									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+									onclick={() => {
+										selectedKonsultan = '';
+										isKonsultanOpen = false;
+									}}
+								>
+									Pilih Sales Consultant
+								</li>
+								{#each consultants as c}
+									<li 
+										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedKonsultan === c.id ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+										onclick={() => {
+											selectedKonsultan = c.id;
+											isKonsultanOpen = false;
+										}}
+									>
+										{c.name}
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+				</div>
+				<input type="hidden" name="konsultan" value={selectedKonsultan} />
 			</div>
 
 			<div class="col-span-full">
@@ -830,25 +1112,127 @@
 
 			<div class="flex flex-col gap-2">
 				<label class="text-[13px] font-semibold text-gray-700" for="pakej">Jenis Pakej<span class="text-red-500 ml-1">*</span></label>
-				<select class={selectClass} id="pakej" name="pakej" required bind:value={selectedPackageType} onchange={() => {
-					console.log('Package dropdown changed to:', selectedPackageType);
-				}}>
-					<option value="">Pilihan Jenis Pakej</option>
-					{#each packageTypes as p}
-						<option value={String(p.id)}>{p.name.replace(/outbound/ig, 'Pelancongan')}</option>
-					{/each}
-				</select>
+				<div class="relative">
+					<div 
+						class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+						onclick={() => isPakejOpen = !isPakejOpen}
+						onblur={() => setTimeout(() => isPakejOpen = false, 200)}
+					>
+						<span class={selectedPackageType ? 'text-gray-900' : 'text-gray-500'}>
+							{selectedPackageType ? packageTypes.find(p => String(p.id) === String(selectedPackageType))?.name.replace(/outbound/ig, 'Pelancongan') || 'Pilihan Jenis Pakej' : 'Pilihan Jenis Pakej'}
+						</span>
+						<svg 
+							class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isPakejOpen ? 'rotate-180' : ''}`}
+							fill="none" 
+							stroke="currentColor" 
+							viewBox="0 0 24 24"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+						</svg>
+					</div>
+					
+					{#if isPakejOpen}
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<ul class="py-1">
+								<li 
+									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+									onclick={() => {
+										selectedPackageType = '';
+										isPakejOpen = false;
+									}}
+								>
+									Pilihan Jenis Pakej
+								</li>
+								{#each packageTypes as p}
+									<li 
+										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] {selectedPackageType === String(p.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}"
+										onclick={() => {
+											selectedPackageType = String(p.id);
+											console.log('Package dropdown changed to:', selectedPackageType);
+											isPakejOpen = false;
+										}}
+									>
+										{p.name.replace(/outbound/ig, 'Pelancongan')}
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+				</div>
+				<input type="hidden" name="pakej" value={selectedPackageType} required />
 			</div>
 
 			{#if showDestinationSection}
 				<div class="flex flex-col gap-2">
 					<label class="text-[13px] font-semibold text-gray-700" for="destinasi">Destinasi<span class="text-red-500 ml-1">*</span></label>
-					<select class={selectClass} id="destinasi" name="destinasi" required bind:value={selectedDestinasi} onchange={() => { selectedTarikh = ''; }}>
-						<option value="">Pilih Destinasi</option>
-						{#each destinations as d}
-							<option value={String(d.id)}>{d.name}</option>
-						{/each}
-					</select>
+					<div class="relative">
+						<div 
+							class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							onclick={() => isDestinasiOpen = !isDestinasiOpen}
+							onblur={() => setTimeout(() => isDestinasiOpen = false, 200)}
+						>
+							<span class={selectedDestinasi ? 'text-gray-900' : 'text-gray-500'}>
+								{selectedDestinasi ? destinations.find(d => String(d.id) === String(selectedDestinasi))?.name || 'Pilih Destinasi' : 'Pilih Destinasi'}
+							</span>
+							<svg 
+								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isDestinasiOpen ? 'rotate-180' : ''}`}
+								fill="none" 
+								stroke="currentColor" 
+								viewBox="0 0 24 24"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+							</svg>
+						</div>
+						
+						{#if isDestinasiOpen}
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-48 overflow-y-auto">
+															<!-- Search input untuk destinasi di atas dropdown -->
+							<div class="sticky top-0 bg-white p-3 border-b border-gray-200 rounded-t-[10px]">
+								<input 
+									type="text" 
+									placeholder="Cari destinasi..." 
+									class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-[#942392] focus:ring-1 focus:ring-[#942392]"
+									oninput={(e) => {
+										const searchTerm = e.target.value.toLowerCase();
+										if (searchTerm === '') {
+											filteredDestinations = [];
+										} else {
+											// Filter destinations berdasarkan search term secara real-time
+											filteredDestinations = destinations.filter(d => 
+												d.name.toLowerCase().includes(searchTerm)
+											);
+										}
+									}}
+								/>
+							</div>
+							<ul class="py-1">
+								<li 
+									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+									onclick={() => {
+										selectedDestinasi = '';
+										selectedTarikh = '';
+										isDestinasiOpen = false;
+									}}
+								>
+									Pilih Destinasi
+								</li>
+								{#each (filteredDestinations.length > 0 ? filteredDestinations : destinations) as d}
+										<li 
+											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedDestinasi === String(d.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+											onclick={() => {
+												selectedDestinasi = String(d.id);
+												selectedTarikh = '';
+												isDestinasiOpen = false;
+											}}
+										>
+											{d.name}
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+					</div>
+					<input type="hidden" name="destinasi" value={selectedDestinasi} required />
 				</div>
 			{/if}
 
@@ -857,66 +1241,287 @@
 			{#if showUmrahSeasonSection}
 				<div class="flex flex-col gap-2">
 					<label class="text-[13px] font-semibold text-gray-700" for="musim_umrah">Musim Umrah<span class="text-red-500 ml-1">*</span></label>
-					<select class={selectClass} id="musim_umrah" name="musim_umrah" required bind:value={selectedMusimUmrah} onchange={() => { selectedKategoriUmrah = ''; }}>
-						<option value="">Pilih Musim Umrah</option>
-						{#each umrahSeasons as season}
-							<option value={String(season.id)}>{season.name}</option>
-						{/each}
-					</select>
+					<div class="relative">
+						<div 
+							class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							onclick={() => isMusimUmrahOpen = !isMusimUmrahOpen}
+							onblur={() => setTimeout(() => isMusimUmrahOpen = false, 200)}
+						>
+							<span class={selectedMusimUmrah ? 'text-gray-900' : 'text-gray-500'}>
+								{selectedMusimUmrah ? umrahSeasons.find(season => String(season.id) === String(selectedMusimUmrah))?.name || 'Pilih Musim Umrah' : 'Pilih Musim Umrah'}
+							</span>
+							<svg 
+								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isMusimUmrahOpen ? 'rotate-180' : ''}`}
+								fill="none" 
+								stroke="currentColor" 
+								viewBox="0 0 24 24"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+							</svg>
+						</div>
+						
+						{#if isMusimUmrahOpen}
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+								<ul class="py-1">
+									<li 
+										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+										onclick={() => {
+											selectedMusimUmrah = '';
+											selectedKategoriUmrah = '';
+											isMusimUmrahOpen = false;
+										}}
+									>
+										Pilih Musim Umrah
+									</li>
+									{#each umrahSeasons as season}
+										<li 
+											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedMusimUmrah === String(season.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+											onclick={() => {
+												selectedMusimUmrah = String(season.id);
+												selectedKategoriUmrah = '';
+												isMusimUmrahOpen = false;
+											}}
+										>
+											{season.name}
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+					</div>
+					<input type="hidden" name="musim_umrah" value={selectedMusimUmrah} required />
 				</div>
 			{/if}
 
 			{#if showUmrahCategorySection}
 				<div class="flex flex-col gap-2">
 					<label class="text-[13px] font-semibold text-gray-700" for="kategori_umrah">Kategori Umrah<span class="text-red-500 ml-1">*</span></label>
-					<select class={selectClass} id="kategori_umrah" name="kategori_umrah" required bind:value={selectedKategoriUmrah} onchange={() => { selectedAirline = ''; selectedTarikhUmrah = ''; }}>
-						<option value="">Pilih Kategori Umrah</option>
-						{#each umrahCategories as category}
-							<option value={String(category.id)}>{category.name}</option>
-						{/each}
-					</select>
+					<div class="relative">
+						<div 
+							class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							onclick={() => isKategoriUmrahOpen = !isKategoriUmrahOpen}
+							onblur={() => setTimeout(() => isKategoriUmrahOpen = false, 200)}
+						>
+							<span class={selectedKategoriUmrah ? 'text-gray-900' : 'text-gray-500'}>
+								{selectedKategoriUmrah ? umrahCategories.find(category => String(category.id) === String(selectedKategoriUmrah))?.name || 'Pilih Kategori Umrah' : 'Pilih Kategori Umrah'}
+							</span>
+							<svg 
+								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isKategoriUmrahOpen ? 'rotate-180' : ''}`}
+								fill="none" 
+								stroke="currentColor" 
+								viewBox="0 0 24 24"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+							</svg>
+						</div>
+						
+						{#if isKategoriUmrahOpen}
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+								<ul class="py-1">
+									<li 
+										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+										onclick={() => {
+											selectedKategoriUmrah = '';
+											selectedAirline = '';
+											selectedTarikhUmrah = '';
+											isKategoriUmrahOpen = false;
+										}}
+									>
+										Pilih Kategori Umrah
+									</li>
+									{#each umrahCategories as category}
+										<li 
+											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedKategoriUmrah === String(category.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+											onclick={() => {
+												selectedKategoriUmrah = String(category.id);
+												selectedAirline = '';
+												selectedTarikhUmrah = '';
+												isKategoriUmrahOpen = false;
+											}}
+										>
+											{category.name}
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+					</div>
+					<input type="hidden" name="kategori_umrah" value={selectedKategoriUmrah} required />
 				</div>
 			{/if}
 
 			{#if showAirlineSection}
 				<div class="flex flex-col gap-2">
 					<label class="text-[13px] font-semibold text-gray-700" for="airline">Airline<span class="text-red-500 ml-1">*</span></label>
-					<select class={selectClass} id="airline" name="airline" required bind:value={selectedAirline} onchange={() => { selectedTarikhUmrah = ''; }}>
-						<option value="">Pilih Airline</option>
-						{#each airlines as airline}
-							<option value={String(airline.id)}>{airline.name}</option>
-						{/each}
-					</select>
+					<div class="relative">
+						<div 
+							class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							onclick={() => isAirlineOpen = !isAirlineOpen}
+							onblur={() => setTimeout(() => isAirlineOpen = false, 200)}
+						>
+							<span class={selectedAirline ? 'text-gray-900' : 'text-gray-500'}>
+								{selectedAirline ? airlines.find(airline => String(airline.id) === String(selectedAirline))?.name || 'Pilih Airline' : 'Pilih Airline'}
+							</span>
+							<svg 
+								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isAirlineOpen ? 'rotate-180' : ''}`}
+								fill="none" 
+								stroke="currentColor" 
+								viewBox="0 0 24 24"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+							</svg>
+						</div>
+						
+						{#if isAirlineOpen}
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+								<ul class="py-1">
+									<li 
+										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+										onclick={() => {
+											selectedAirline = '';
+											selectedTarikhUmrah = '';
+											isAirlineOpen = false;
+										}}
+									>
+										Pilih Airline
+									</li>
+									{#each airlines as airline}
+										<li 
+											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedAirline === String(airline.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+											onclick={() => {
+												selectedAirline = String(airline.id);
+												selectedTarikhUmrah = '';
+												isAirlineOpen = false;
+											}}
+										>
+											{airline.name}
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+					</div>
+					<input type="hidden" name="airline" value={selectedAirline} required />
 				</div>
 			{/if}
 
 			{#if showUmrahDateSection}
 				<div class="flex flex-col gap-2">
 					<label class="text-[13px] font-semibold text-gray-700" for="tarikh_umrah">Tarikh Umrah<span class="text-red-500 ml-1">*</span></label>
-					<select class={selectClass} id="tarikh_umrah" name="tarikh_umrah" required disabled={!selectedAirline || filteredUmrahDates.length === 0} bind:value={selectedTarikhUmrah}>
-						<option value="">Pilih Tarikh</option>
-						{#each filteredUmrahDates as date}
-							<option value={String(date.id)}>{formatDate(date.start_date)} - {formatDate(date.end_date)}</option>
-						{/each}
-						{#if selectedAirline && filteredUmrahDates.length === 0}
-							<option value="" disabled>Tiada tarikh tersedia untuk pilihan ini</option>
+					<div class="relative">
+						<div 
+							class={`h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedAirline || filteredUmrahDates.length === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+							onclick={() => {
+								if (selectedAirline && filteredUmrahDates.length > 0) {
+									isTarikhUmrahOpen = !isTarikhUmrahOpen;
+								}
+							}}
+							onblur={() => setTimeout(() => isTarikhUmrahOpen = false, 200)}
+						>
+							<span class={selectedTarikhUmrah ? 'text-gray-900' : 'text-gray-500'}>
+								{selectedTarikhUmrah ? (() => {
+									const date = filteredUmrahDates.find(d => String(d.id) === String(selectedTarikhUmrah));
+									return date ? `${formatDate(date.start_date)} - ${formatDate(date.end_date)}` : 'Pilih Tarikh';
+								})() : 'Pilih Tarikh'}
+							</span>
+							<svg 
+								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isTarikhUmrahOpen ? 'rotate-180' : ''} ${!selectedAirline || filteredUmrahDates.length === 0 ? 'opacity-50' : ''}`}
+								fill="none" 
+								stroke="currentColor" 
+								viewBox="0 0 24 24"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+							</svg>
+						</div>
+						
+						{#if isTarikhUmrahOpen && selectedAirline && filteredUmrahDates.length > 0}
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+								<ul class="py-1">
+									<li 
+										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+										onclick={() => {
+											selectedTarikhUmrah = '';
+											isTarikhUmrahOpen = false;
+										}}
+									>
+										Pilih Tarikh
+									</li>
+									{#each filteredUmrahDates as date}
+										<li 
+											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedTarikhUmrah === String(date.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+											onclick={() => {
+												selectedTarikhUmrah = String(date.id);
+												isTarikhUmrahOpen = false;
+											}}
+										>
+											{formatDate(date.start_date)} - {formatDate(date.end_date)}
+										</li>
+									{/each}
+								</ul>
+							</div>
 						{/if}
-					</select>
+					</div>
+					<input type="hidden" name="tarikh_umrah" value={selectedTarikhUmrah} required />
 				</div>
 			{/if}
 
 			{#if showDateSection}
 				<div class="flex flex-col gap-2">
 					<label class="text-[13px] font-semibold text-gray-700" for="tarikh_berlepas">Tarikh Pelancongan<span class="text-red-500 ml-1">*</span></label>
-					<select class={selectClass} id="tarikh_berlepas" name="tarikh_berlepas" required disabled={!selectedDestinasi || filteredOutboundDates.length === 0} bind:value={selectedTarikh}>
-						<option value="">Pilih Tarikh</option>
-						{#each filteredOutboundDates as date}
-							<option value={String(date.id)}>{formatDate(date.start_date)} - {formatDate(date.end_date)} (RM {formatPrice(date.price)})</option>
-						{/each}
-						{#if selectedDestinasi && filteredOutboundDates.length === 0}
-							<option value="" disabled>Tiada tarikh tersedia untuk destinasi ini</option>
+					<div class="relative">
+						<div 
+							class={`h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedDestinasi || filteredOutboundDates.length === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+							onclick={() => {
+								if (selectedDestinasi && filteredOutboundDates.length > 0) {
+									isTarikhOpen = !isTarikhOpen;
+								}
+							}}
+							onblur={() => setTimeout(() => isTarikhOpen = false, 200)}
+						>
+							<span class={selectedTarikh ? 'text-gray-900' : 'text-gray-500'}>
+								{selectedTarikh ? (() => {
+									const date = filteredOutboundDates.find(d => String(d.id) === String(selectedTarikh));
+									return date ? `${formatDate(date.start_date)} - ${formatDate(date.end_date)} (RM ${formatPrice(date.price)})` : 'Pilih Tarikh';
+								})() : 'Pilih Tarikh'}
+							</span>
+							<svg 
+								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isTarikhOpen ? 'rotate-180' : ''} ${!selectedDestinasi || filteredOutboundDates.length === 0 ? 'opacity-50' : ''}`}
+								fill="none" 
+								stroke="currentColor" 
+								viewBox="0 0 24 24"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+							</svg>
+						</div>
+						
+						{#if isTarikhOpen && selectedDestinasi && filteredOutboundDates.length > 0}
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+								<ul class="py-1">
+									<li 
+										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+										onclick={() => {
+											selectedTarikh = '';
+											isTarikhOpen = false;
+										}}
+									>
+										Pilih Tarikh
+									</li>
+									{#each filteredOutboundDates as date}
+										<li 
+											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedTarikh === String(date.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+											onclick={() => {
+												selectedTarikh = String(date.id);
+												isTarikhOpen = false;
+											}}
+										>
+											{formatDate(date.start_date)} - {formatDate(date.end_date)} (RM {formatPrice(date.price)})
+										</li>
+									{/each}
+								</ul>
+							</div>
 						{/if}
-					</select>
+					</div>
+					<input type="hidden" name="tarikh_berlepas" value={selectedTarikh} required />
 				</div>
 			{/if}
 
@@ -924,23 +1529,114 @@
 				{#if selectedTarikhUmrah}
 					<div class="flex flex-col gap-2">
 						<label class="text-[13px] font-semibold text-gray-700" for="pilih_bilik">Pilih Bilik<span class="text-red-500 ml-1">*</span></label>
-						<select class={selectClass} id="pilih_bilik" name="pilih_bilik" required bind:value={selectedRoomType} disabled={(dynamicRoomOptions?.length || 0) === 0}>
-							<option value="">Pilih Jenis Bilik</option>
-							{#each dynamicRoomOptions.length > 0 ? dynamicRoomOptions : fallbackRoomOptions as opt}
-								<option value={opt.value}>{opt.label}</option>
-							{/each}
-						</select>
+						<div class="relative">
+							<div 
+								class={`h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${(dynamicRoomOptions?.length || 0) === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+								onclick={() => {
+									if ((dynamicRoomOptions?.length || 0) > 0) {
+										isPilihBilikOpen = !isPilihBilikOpen;
+									}
+								}}
+								onblur={() => setTimeout(() => isPilihBilikOpen = false, 200)}
+							>
+								<span class={selectedRoomType ? 'text-gray-900' : 'text-gray-500'}>
+									{selectedRoomType ? (() => {
+										const roomOption = (dynamicRoomOptions.length > 0 ? dynamicRoomOptions : fallbackRoomOptions).find(opt => opt.value === selectedRoomType);
+										return roomOption ? roomOption.label : 'Pilih Jenis Bilik';
+									})() : 'Pilih Jenis Bilik'}
+								</span>
+								<svg 
+									class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isPilihBilikOpen ? 'rotate-180' : ''} ${(dynamicRoomOptions?.length || 0) === 0 ? 'opacity-50' : ''}`}
+									fill="none" 
+									stroke="currentColor" 
+									viewBox="0 0 24 24"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+								</svg>
+							</div>
+							
+							{#if isPilihBilikOpen && (dynamicRoomOptions?.length || 0) > 0}
+								<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+									<ul class="py-1">
+										<li 
+											class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+											onclick={() => {
+												selectedRoomType = '';
+												isPilihBilikOpen = false;
+											}}
+										>
+											Pilih Jenis Bilik
+										</li>
+										{#each (dynamicRoomOptions.length > 0 ? dynamicRoomOptions : fallbackRoomOptions) as opt}
+											<li 
+												class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedRoomType === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
+												onclick={() => {
+													if (!opt.disabled) {
+														selectedRoomType = opt.value;
+														isPilihBilikOpen = false;
+													}
+												}}
+											>
+												{opt.label}
+											</li>
+										{/each}
+									</ul>
+								</div>
+							{/if}
+						</div>
+						<input type="hidden" name="pilih_bilik" value={selectedRoomType} required />
 					</div>
 				{/if}
 
 				<div class="flex flex-col gap-2">
 					<label class="text-[13px] font-semibold text-gray-700" for="bilangan">Bilangan Peserta Yang Akan Mengikuti<span class="text-red-500 ml-1">*</span></label>
-					<select class={selectClass} id="bilangan" name="bilangan" required bind:value={selectedBilangan}>
-						<option value="">Pilih Bilangan Peserta</option>
-						{#each Array.from({length: 21}, (_, i) => i) as num}
-							<option value={num}>{num}</option>
-						{/each}
-					</select>
+					<div class="relative">
+						<div 
+							class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							onclick={() => isBilanganOpen = !isBilanganOpen}
+							onblur={() => setTimeout(() => isBilanganOpen = false, 200)}
+						>
+							<span class={selectedBilangan !== '' ? 'text-gray-900' : 'text-gray-500'}>
+								{selectedBilangan !== '' ? selectedBilangan : 'Pilih Bilangan Peserta'}
+							</span>
+							<svg 
+								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isBilanganOpen ? 'rotate-180' : ''}`}
+								fill="none" 
+								stroke="currentColor" 
+								viewBox="0 0 24 24"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+							</svg>
+						</div>
+						
+						{#if isBilanganOpen}
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+								<ul class="py-1">
+									<li 
+										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
+										onclick={() => {
+											selectedBilangan = '';
+											isBilanganOpen = false;
+										}}
+									>
+										Pilih Bilangan Peserta
+									</li>
+									{#each Array.from({length: 21}, (_, i) => i) as num}
+										<li 
+											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedBilangan === num ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+											onclick={() => {
+												selectedBilangan = num;
+												isBilanganOpen = false;
+											}}
+										>
+											{num}
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+					</div>
+					<input type="hidden" name="bilangan" value={selectedBilangan} required />
 				</div>
 
 				{#if selectedBilangan}

@@ -23,9 +23,9 @@
 	<div class="flex-1">
 		{@render children?.()}
 	</div>
-	<footer class="text-gray-500 mt-auto">
-		<div class="py-4 border-t border-[#e5e7eb] bg-[#fafafa]">
-			<div class="max-w-[1000px] mx-auto px-6 box-border">
+	<footer class="text-gray-500 flex items-center justify-center">
+		<div class="py-4 border-t border-[#e5e7eb] bg-[#fafafa] w-full">
+			<div class="max-w-[1000px] mx-auto px-6 box-border text-center">
 				<small>Hak Cipta © 2025 Rayhar Hak Cipta Terpelihara.</small>
 			</div>
 		</div>
