@@ -288,6 +288,32 @@ export const actions = {
 			console.log('Form Data:', maklumat);
 			console.log('==================');
 
+			// Cek apakah user pernah inquiry sebelum booking
+			const { data: userJourney, error: journeyError } = await supabase.rpc('check_if_user_inquired', {
+				p_telefon: maklumat.telefon
+			});
+
+			if (journeyError) {
+				console.error('Error checking user inquiry:', journeyError);
+			}
+
+			// Set field tracking untuk user journey
+			if (userJourney && userJourney.is_from_inquiry) {
+				maklumat.is_from_inquiry = true;
+				maklumat.lead_reference_id = userJourney.lead_id;
+				
+				console.log('=== USER FROM INQUIRY ===');
+				console.log('Lead ID:', userJourney.lead_id);
+				console.log('Lead Date:', userJourney.lead_date);
+				console.log('=========================');
+			} else {
+				maklumat.is_from_inquiry = false;
+				
+				console.log('=== DIRECT BOOKING ===');
+				console.log('User booking langsung tanpa inquiry');
+				console.log('=======================');
+			}
+
 			// Validate required fields (validate negeri/bandar after postcode fallback)
 			const requiredFields = ['gelaran', 'nama', 'nokp', 'telefon', 'email', 'alamat', 'poskod'];
 			for (const field of requiredFields) {
@@ -367,13 +393,20 @@ export const actions = {
 				});
 			}
 
-			// Validate bilangan is a non-negative number
+			// Validate bilangan is a non-negative number (0 is valid - means no additional participants)
 			if (typeof maklumat.bilangan !== 'number' || Number.isNaN(maklumat.bilangan) || maklumat.bilangan < 0) {
 				console.error('Invalid bilangan:', maklumat.bilangan);
 				return fail(400, {
-					error: 'Bilangan peserta tidak boleh negatif',
+					error: 'Bilangan peserta tambahan tidak boleh negatif',
 					form: maklumat
 				});
+			}
+			
+			// Log the booking scenario
+			if (maklumat.bilangan === 0) {
+				console.log('Booking scenario: Single participant (applicant only)');
+			} else {
+				console.log(`Booking scenario: ${maklumat.bilangan + 1} total participants (1 applicant + ${maklumat.bilangan} additional)`);
 			}
 
 			// Validate UUID fields if provided

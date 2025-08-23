@@ -52,7 +52,7 @@
 
 	// Tailwind utility class constants (no external CSS)
 	const controlClass = 'h-11 px-3 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none focus:border-[#942392] focus:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]';
-	const selectClass = 'h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none appearance-none bg-no-repeat bg-[right_12px_center] bg-[length:16px] focus:border-[#942392] focus:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] bg-[url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6,9 12,15 18,9\'%3e%3c/polyline%3e%3c/svg%3e")]';
+	const selectClass = 'h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none appearance-none bg-no-repeat bg-[right_12px_center] bg-[length:16px] focus:border-[#942392] focus:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] bg-[url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6,9 12,15 18,9\'%3e%3c/polyline%3e%3c/svg%3e")]';
 	const disabledOptionClass = 'text-gray-400 cursor-not-allowed';
 	const labelClass = 'text-[13px] font-semibold text-gray-700';
 	const fieldClass = 'flex flex-col gap-2';
@@ -134,6 +134,18 @@
 	// State untuk filtered data search
 	let filteredBranches = $state([]);
 	let filteredDestinations = $state([]);
+	let searchTermBranches = $state('');
+	let searchTermDestinations = $state('');
+	let searchTimeoutBranches = null;
+	let searchTimeoutDestinations = null;
+
+	// Fungsi debounce untuk search
+	function debounceSearch(func, delay) {
+		return function(...args) {
+			clearTimeout(func.timeoutId);
+			func.timeoutId = setTimeout(() => func.apply(this, args), delay);
+		};
+	}
 
 	// Fallback static options if record does not include room info
 	const fallbackRoomOptions = [
@@ -674,7 +686,7 @@
 				<label class="text-[13px] font-semibold text-gray-700" for="gelaran">Gelaran<span class="text-red-500 ml-1">*</span></label>
 				<div class="relative">
 					<div 
-						class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+						class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
 						onclick={() => isGelaranOpen = !isGelaranOpen}
 						onblur={() => setTimeout(() => isGelaranOpen = false, 200)}
 					>
@@ -692,7 +704,7 @@
 					</div>
 					
 					{#if isGelaranOpen}
-						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 							<ul class="py-1">
 								{#each ['Cik', 'Encik', 'Puan', 'Tuan', 'Datin', 'Dato'] as gelaran}
 									<li 
@@ -848,7 +860,7 @@
 				<label class="text-[13px] font-semibold text-gray-700" for="negeri">Negeri<span class="text-red-500 ml-1">*</span></label>
 				<div class="relative">
 					<div 
-						class={`h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!(Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+						class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!(Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
 						onclick={() => {
 							if (Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0) {
 								isNegeriOpen = !isNegeriOpen;
@@ -870,7 +882,7 @@
 					</div>
 					
 					{#if isNegeriOpen && Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0}
-						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-96 overflow-y-auto">
 							<ul class="py-1">
 								<li 
 									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -912,7 +924,7 @@
 				<label class="text-[13px] font-semibold text-gray-700" for="bandar">Bandar<span class="text-red-500 ml-1">*</span></label>
 				<div class="relative">
 					<div 
-						class={`h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+						class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
 						onclick={() => {
 							if (selectedNegeri && Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) {
 								isBandarOpen = !isBandarOpen;
@@ -938,7 +950,7 @@
 					</div>
 					
 					{#if isBandarOpen && selectedNegeri && Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0}
-						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-96 overflow-y-auto">
 							<ul class="py-1">
 								<li 
 									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -980,9 +992,21 @@
 				<label class="text-[13px] font-semibold text-gray-700" for="cawangan">Cawangan<span class="text-red-500 ml-1">*</span></label>
 				<div class="relative">
 					<div 
-						class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
-						onclick={() => isCawanganOpen = !isCawanganOpen}
-						onblur={() => setTimeout(() => isCawanganOpen = false, 200)}
+						class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+						onclick={() => {
+								isCawanganOpen = !isCawanganOpen;
+								if (!isCawanganOpen) {
+									searchTermBranches = '';
+									filteredBranches = [];
+									clearTimeout(searchTimeoutBranches);
+								}
+							}}
+							onblur={() => setTimeout(() => {
+								isCawanganOpen = false;
+								searchTermBranches = '';
+								filteredBranches = [];
+								clearTimeout(searchTimeoutBranches);
+							}, 200)}
 					>
 						<span class={selectedCawangan ? 'text-gray-900' : 'text-gray-500'}>
 							{selectedCawangan ? branches.find(b => b.id === selectedCawangan)?.name || 'Pilih Cawangan Anda' : 'Pilih Cawangan Anda'}
@@ -998,25 +1022,33 @@
 					</div>
 					
 					{#if isCawanganOpen}
-						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-48 overflow-y-auto">
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-96 overflow-y-auto">
 							<!-- Search input untuk cawangan di atas dropdown -->
-							<div class="sticky top-0 bg-white p-3 border-b border-gray-200 rounded-t-[10px]">
-								<input 
-									type="text" 
-									placeholder="Cari cawangan..." 
-									class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-[#942392] focus:ring-1 focus:ring-[#942392]"
-									oninput={(e) => {
-										const searchTerm = e.target.value.toLowerCase();
-										if (searchTerm === '') {
-											filteredBranches = [];
-										} else {
-											// Filter branches berdasarkan search term secara real-time
-											filteredBranches = branches.filter(b => 
-												b.name.toLowerCase().includes(searchTerm)
-											);
-										}
-									}}
-								/>
+							<div class="sticky top-0 bg-white p-4 border-b border-gray-200 rounded-t-[10px]">
+								<div class="relative">
+									<input 
+										type="text" 
+										placeholder="Ketik untuk mencari cawangan..." 
+										class="w-full h-11 pl-10 pr-4 py-2 text-[14px] border border-[#e5e7eb] rounded-[10px] focus:outline-none focus:border-[#942392] focus:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] transition-all duration-200"
+										oninput={(e) => {
+											clearTimeout(searchTimeoutBranches);
+											searchTimeoutBranches = setTimeout(() => {
+												searchTermBranches = e.target.value.toLowerCase();
+												if (searchTermBranches === '') {
+													filteredBranches = [];
+												} else {
+													// Filter branches berdasarkan search term secara real-time
+													filteredBranches = branches.filter(b => 
+														b.name.toLowerCase().includes(searchTermBranches)
+													);
+												}
+											}, 300);
+										}}
+									/>
+									<svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+									</svg>
+								</div>
 							</div>
 							<ul class="py-1">
 								<li 
@@ -1028,7 +1060,7 @@
 								>
 									Pilih Cawangan Anda
 								</li>
-								{#each (filteredBranches.length > 0 ? filteredBranches : branches) as b}
+								{#each (filteredBranches.length > 0 ? filteredBranches : (filteredBranches.length === 0 && searchTermBranches !== '' ? [] : branches)) as b}
 									<li 
 										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedCawangan === b.id ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
 										onclick={() => {
@@ -1039,6 +1071,11 @@
 										{b.name}
 									</li>
 								{/each}
+								{#if filteredBranches.length === 0 && searchTermBranches !== ''}
+									<li class="px-3 py-2 text-[14px] text-gray-500 text-center">
+										Tidak ada cawangan yang ditemukan
+									</li>
+								{/if}
 							</ul>
 						</div>
 					{/if}
@@ -1050,7 +1087,7 @@
 				<label class="text-[13px] font-semibold text-gray-700" for="konsultan">Sales Consultant</label>
 				<div class="relative">
 					<div 
-						class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+						class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
 						onclick={() => isKonsultanOpen = !isKonsultanOpen}
 						onblur={() => setTimeout(() => isKonsultanOpen = false, 200)}
 					>
@@ -1068,7 +1105,7 @@
 					</div>
 					
 					{#if isKonsultanOpen}
-						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 							<ul class="py-1">
 								<li 
 									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -1114,7 +1151,7 @@
 				<label class="text-[13px] font-semibold text-gray-700" for="pakej">Jenis Pakej<span class="text-red-500 ml-1">*</span></label>
 				<div class="relative">
 					<div 
-						class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+						class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
 						onclick={() => isPakejOpen = !isPakejOpen}
 						onblur={() => setTimeout(() => isPakejOpen = false, 200)}
 					>
@@ -1132,7 +1169,7 @@
 					</div>
 					
 					{#if isPakejOpen}
-						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 							<ul class="py-1">
 								<li 
 									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -1167,9 +1204,21 @@
 					<label class="text-[13px] font-semibold text-gray-700" for="destinasi">Destinasi<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
-							onclick={() => isDestinasiOpen = !isDestinasiOpen}
-							onblur={() => setTimeout(() => isDestinasiOpen = false, 200)}
+							class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							onclick={() => {
+								isDestinasiOpen = !isDestinasiOpen;
+								if (!isDestinasiOpen) {
+									searchTermDestinations = '';
+									filteredDestinations = [];
+									clearTimeout(searchTimeoutDestinations);
+								}
+							}}
+							onblur={() => setTimeout(() => {
+								isDestinasiOpen = false;
+								searchTermDestinations = '';
+								filteredDestinations = [];
+								clearTimeout(searchTimeoutDestinations);
+							}, 200)}
 						>
 							<span class={selectedDestinasi ? 'text-gray-900' : 'text-gray-500'}>
 								{selectedDestinasi ? destinations.find(d => String(d.id) === String(selectedDestinasi))?.name || 'Pilih Destinasi' : 'Pilih Destinasi'}
@@ -1185,25 +1234,33 @@
 						</div>
 						
 						{#if isDestinasiOpen}
-							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-48 overflow-y-auto">
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-96 overflow-y-auto">
 															<!-- Search input untuk destinasi di atas dropdown -->
-							<div class="sticky top-0 bg-white p-3 border-b border-gray-200 rounded-t-[10px]">
-								<input 
-									type="text" 
-									placeholder="Cari destinasi..." 
-									class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-[#942392] focus:ring-1 focus:ring-[#942392]"
-									oninput={(e) => {
-										const searchTerm = e.target.value.toLowerCase();
-										if (searchTerm === '') {
-											filteredDestinations = [];
-										} else {
-											// Filter destinations berdasarkan search term secara real-time
-											filteredDestinations = destinations.filter(d => 
-												d.name.toLowerCase().includes(searchTerm)
-											);
-										}
-									}}
-								/>
+							<div class="sticky top-0 bg-white p-4 border-b border-gray-200 rounded-t-[10px]">
+								<div class="relative">
+									<input 
+										type="text" 
+										placeholder="Ketik untuk mencari destinasi..." 
+										class="w-full h-11 pl-10 pr-4 py-2 text-[14px] border border-[#e5e7eb] rounded-[10px] focus:outline-none focus:border-[#942392] focus:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] transition-all duration-200"
+										oninput={(e) => {
+											clearTimeout(searchTimeoutDestinations);
+											searchTimeoutDestinations = setTimeout(() => {
+												searchTermDestinations = e.target.value.toLowerCase();
+												if (searchTermDestinations === '') {
+													filteredDestinations = [];
+												} else {
+													// Filter destinations berdasarkan search term secara real-time
+													filteredDestinations = destinations.filter(d => 
+														d.name.toLowerCase().includes(searchTermDestinations)
+													);
+												}
+											}, 300);
+										}}
+									/>
+									<svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+									</svg>
+								</div>
 							</div>
 							<ul class="py-1">
 								<li 
@@ -1216,7 +1273,7 @@
 								>
 									Pilih Destinasi
 								</li>
-								{#each (filteredDestinations.length > 0 ? filteredDestinations : destinations) as d}
+								{#each (filteredDestinations.length > 0 ? filteredDestinations : (filteredDestinations.length === 0 && searchTermDestinations !== '' ? [] : destinations)) as d}
 										<li 
 											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedDestinasi === String(d.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
 											onclick={() => {
@@ -1228,6 +1285,11 @@
 											{d.name}
 										</li>
 									{/each}
+									{#if filteredDestinations.length === 0 && searchTermDestinations !== ''}
+										<li class="px-3 py-2 text-[14px] text-gray-500 text-center">
+											Tidak ada destinasi yang ditemukan
+										</li>
+									{/if}
 								</ul>
 							</div>
 						{/if}
@@ -1243,7 +1305,7 @@
 					<label class="text-[13px] font-semibold text-gray-700" for="musim_umrah">Musim Umrah<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
 							onclick={() => isMusimUmrahOpen = !isMusimUmrahOpen}
 							onblur={() => setTimeout(() => isMusimUmrahOpen = false, 200)}
 						>
@@ -1261,7 +1323,7 @@
 						</div>
 						
 						{#if isMusimUmrahOpen}
-							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
 									<li 
 										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -1298,7 +1360,7 @@
 					<label class="text-[13px] font-semibold text-gray-700" for="kategori_umrah">Kategori Umrah<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
 							onclick={() => isKategoriUmrahOpen = !isKategoriUmrahOpen}
 							onblur={() => setTimeout(() => isKategoriUmrahOpen = false, 200)}
 						>
@@ -1316,7 +1378,7 @@
 						</div>
 						
 						{#if isKategoriUmrahOpen}
-							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
 									<li 
 										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -1355,7 +1417,7 @@
 					<label class="text-[13px] font-semibold text-gray-700" for="airline">Airline<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
 							onclick={() => isAirlineOpen = !isAirlineOpen}
 							onblur={() => setTimeout(() => isAirlineOpen = false, 200)}
 						>
@@ -1373,7 +1435,7 @@
 						</div>
 						
 						{#if isAirlineOpen}
-							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
 									<li 
 										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -1410,7 +1472,7 @@
 					<label class="text-[13px] font-semibold text-gray-700" for="tarikh_umrah">Tarikh Umrah<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class={`h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedAirline || filteredUmrahDates.length === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+							class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedAirline || filteredUmrahDates.length === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
 							onclick={() => {
 								if (selectedAirline && filteredUmrahDates.length > 0) {
 									isTarikhUmrahOpen = !isTarikhUmrahOpen;
@@ -1435,7 +1497,7 @@
 						</div>
 						
 						{#if isTarikhUmrahOpen && selectedAirline && filteredUmrahDates.length > 0}
-							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
 									<li 
 										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -1470,7 +1532,7 @@
 					<label class="text-[13px] font-semibold text-gray-700" for="tarikh_berlepas">Tarikh Pelancongan<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class={`h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedDestinasi || filteredOutboundDates.length === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+							class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedDestinasi || filteredOutboundDates.length === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
 							onclick={() => {
 								if (selectedDestinasi && filteredOutboundDates.length > 0) {
 									isTarikhOpen = !isTarikhOpen;
@@ -1495,7 +1557,7 @@
 						</div>
 						
 						{#if isTarikhOpen && selectedDestinasi && filteredOutboundDates.length > 0}
-							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
 									<li 
 										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -1531,7 +1593,7 @@
 						<label class="text-[13px] font-semibold text-gray-700" for="pilih_bilik">Pilih Bilik<span class="text-red-500 ml-1">*</span></label>
 						<div class="relative">
 							<div 
-								class={`h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${(dynamicRoomOptions?.length || 0) === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+								class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${(dynamicRoomOptions?.length || 0) === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
 								onclick={() => {
 									if ((dynamicRoomOptions?.length || 0) > 0) {
 										isPilihBilikOpen = !isPilihBilikOpen;
@@ -1556,7 +1618,7 @@
 							</div>
 							
 							{#if isPilihBilikOpen && (dynamicRoomOptions?.length || 0) > 0}
-								<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+								<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 									<ul class="py-1">
 										<li 
 											class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -1589,15 +1651,16 @@
 				{/if}
 
 				<div class="flex flex-col gap-2">
-					<label class="text-[13px] font-semibold text-gray-700" for="bilangan">Bilangan Peserta Yang Akan Mengikuti<span class="text-red-500 ml-1">*</span></label>
+					<label class="text-[13px] font-semibold text-gray-700" for="bilangan">Bilangan Peserta Tambahan<span class="text-red-500 ml-1">*</span></label>
+					<p class="text-xs text-gray-600 mt-1 italic">Pilih 0 jika hanya Anda sendiri yang akan pergi</p>
 					<div class="relative">
 						<div 
-							class="h-11 px-3 pr-8 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
 							onclick={() => isBilanganOpen = !isBilanganOpen}
 							onblur={() => setTimeout(() => isBilanganOpen = false, 200)}
 						>
 							<span class={selectedBilangan !== '' ? 'text-gray-900' : 'text-gray-500'}>
-								{selectedBilangan !== '' ? selectedBilangan : 'Pilih Bilangan Peserta'}
+								{selectedBilangan !== '' ? selectedBilangan : 'Pilih Bilangan Peserta Tambahan'}
 							</span>
 							<svg 
 								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isBilanganOpen ? 'rotate-180' : ''}`}
@@ -1610,7 +1673,7 @@
 						</div>
 						
 						{#if isBilanganOpen}
-							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
 									<li 
 										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
@@ -1619,7 +1682,7 @@
 											isBilanganOpen = false;
 										}}
 									>
-										Pilih Bilangan Peserta
+										Pilih Bilangan Peserta Tambahan
 									</li>
 									{#each Array.from({length: 21}, (_, i) => i) as num}
 										<li 
@@ -1654,6 +1717,8 @@
 				<h3 class="text-[18px] font-bold text-gray-700 m-0 whitespace-nowrap text-center">MAKLUMAT PESERTA</h3>
 				<hr class="flex-1 h-px m-0 border-0 bg-gray-300">
 			</div>
+			
+			
 
 			{#if samakanData}
 				<div class="flex flex-col gap-2">
@@ -1704,6 +1769,7 @@
 			</div>
 
 			{#if selectedBilangan && pesertaData.length > 0}
+				<!-- Peserta tambahan (Peserta 2, 3, dst) hanya muncul jika bilangan > 0 -->
 				{#each pesertaData as peserta, index}
 					<div class="col-span-full border border-[#e5e7eb] rounded-[10px] p-5 mb-4 bg-[#f9fafb]">
 						<h4 class="text-[16px] font-semibold text-gray-700 m-0 mb-4 pb-2 border-b-2 border-[#d1d5db]">
