@@ -58,12 +58,12 @@
 	const fieldClass = 'flex flex-col gap-2';
 	const actionsClass = 'col-span-full mt-2';
 	const btnPrimaryClass = 'w-full h-[46px] border-0 rounded-[10px] text-white font-semibold tracking-wide bg-gradient-to-r from-[#942392] to-[#942392] shadow-[0_6px_14px_rgba(148,35,146,0.25)] cursor-pointer hover:brightness-105';
-	const sectionDividerClass = 'col-span-full flex items-center gap-5 my-[30px]';
+	const sectionDividerClass = 'col-span-full flex items-center gap-3 sm:gap-5 my-6 sm:my-[30px]';
 	const dividerLineClass = 'flex-1 h-px m-0 border-0 bg-gray-300';
 	const sectionTitleClass = 'text-[18px] font-bold text-gray-700 m-0 whitespace-nowrap text-center';
-	const pesertaSectionClass = 'col-span-full border border-[#e5e7eb] rounded-[10px] p-5 mb-4 bg-[#f9fafb]';
+	const pesertaSectionClass = 'col-span-full border border-[#e5e7eb] rounded-[10px] p-4 sm:p-5 mb-4 bg-[#f9fafb]';
 	const pesertaTitleClass = 'text-[16px] font-semibold text-gray-700 m-0 mb-4 pb-2 border-b-2 border-[#d1d5db]';
-	const pesertaFieldsClass = 'grid grid-cols-2 gap-4 max-[720px]:grid-cols-1';
+	const pesertaFieldsClass = 'grid grid-cols-2 gap-3 sm:gap-4 max-[720px]:grid-cols-1';
 	const checkboxLabelClass = 'flex items-center gap-3 cursor-pointer text-sm text-gray-700';
 	const checkboxInputClass = 'w-[18px] h-[18px] m-0 cursor-pointer focus:outline focus:outline-2 focus:outline-[#942392] outline-offset-2';
 	const successBoxClass = 'bg-[#d1fae5] border border-[#10b981] rounded-[14px] p-7 text-center max-w-[720px] mx-auto';
@@ -650,19 +650,19 @@
 	}
 </script>
 
-<section class="max-w-[1000px] mx-auto px-6 box-border pt-10">
-	<div class="text-center mb-5">
-		<h2 class="m-0 text-[28px] font-bold tracking-[0.4px]">ISI MAKLUMAT ANDA</h2>
+<section class="max-w-[1000px] mx-auto px-4 sm:px-6 box-border pt-4 sm:pt-10">
+	<div class="text-center mb-4 sm:mb-5">
+		<h2 class="m-0 text-[24px] sm:text-[28px] font-bold tracking-[0.4px]">ISI MAKLUMAT ANDA</h2>
 	</div>
 
 	{#if showSuccess}
-		<div class="bg-[#d1fae5] border border-[#10b981] rounded-[14px] p-7 text-center max-w-[720px] mx-auto">
+		<div class="bg-[#d1fae5] border border-[#10b981] rounded-[14px] p-4 sm:p-7 text-center max-w-[720px] mx-auto">
 			<h3 class="text-[#065f46] m-0 mb-3 text-2xl font-semibold">Terima Kasih!</h3>
 			<p class="text-[#047857] m-0 text-base">Maklumat anda berjaya dihantar.</p>
 		</div>
 	{:else}
-		<div class="bg-white border border-[#e5e7eb] rounded-[14px] shadow-[0_10px_24px_rgba(17,24,39,0.06)] p-7 max-w-[720px] mx-auto mb-10">
-			<form class="grid grid-cols-2 gap-y-4 gap-x-5 max-[720px]:grid-cols-1" method="POST" use:enhance={() => {
+		<div class="bg-white border border-[#e5e7eb] rounded-[14px] shadow-[0_10px_24px_rgba(17,24,39,0.06)] p-4 sm:p-7 max-w-[720px] mx-auto mb-6 sm:mb-10">
+			<form class="grid grid-cols-2 gap-y-3 gap-x-4 sm:gap-y-4 sm:gap-x-5 max-[720px]:grid-cols-1" method="POST" use:enhance={() => {
 				return async ({ result, cancel }) => {
 					// Prevent form submission if there's a postcode error or incomplete postcode
 					if (poskodError || poskodValue.length !== 5) {
@@ -1051,15 +1051,6 @@
 								</div>
 							</div>
 							<ul class="py-1">
-								<li 
-									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-									onclick={() => {
-										selectedCawangan = '';
-										isCawanganOpen = false;
-									}}
-								>
-									Pilih Cawangan Anda
-								</li>
 								{#each (filteredBranches.length > 0 ? filteredBranches : (filteredBranches.length === 0 && searchTermBranches !== '' ? [] : branches)) as b}
 									<li 
 										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedCawangan === b.id ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
@@ -1107,15 +1098,6 @@
 					{#if isKonsultanOpen}
 						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 							<ul class="py-1">
-								<li 
-									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-									onclick={() => {
-										selectedKonsultan = '';
-										isKonsultanOpen = false;
-									}}
-								>
-									Pilih Sales Consultant
-								</li>
 								{#each consultants as c}
 									<li 
 										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedKonsultan === c.id ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
@@ -1171,15 +1153,6 @@
 					{#if isPakejOpen}
 						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 							<ul class="py-1">
-								<li 
-									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-									onclick={() => {
-										selectedPackageType = '';
-										isPakejOpen = false;
-									}}
-								>
-									Pilihan Jenis Pakej
-								</li>
 								{#each packageTypes as p}
 									<li 
 										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] {selectedPackageType === String(p.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}"
@@ -1263,16 +1236,6 @@
 								</div>
 							</div>
 							<ul class="py-1">
-								<li 
-									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-									onclick={() => {
-										selectedDestinasi = '';
-										selectedTarikh = '';
-										isDestinasiOpen = false;
-									}}
-								>
-									Pilih Destinasi
-								</li>
 								{#each (filteredDestinations.length > 0 ? filteredDestinations : (filteredDestinations.length === 0 && searchTermDestinations !== '' ? [] : destinations)) as d}
 										<li 
 											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedDestinasi === String(d.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
@@ -1325,16 +1288,6 @@
 						{#if isMusimUmrahOpen}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
-									<li 
-										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-										onclick={() => {
-											selectedMusimUmrah = '';
-											selectedKategoriUmrah = '';
-											isMusimUmrahOpen = false;
-										}}
-									>
-										Pilih Musim Umrah
-									</li>
 									{#each umrahSeasons as season}
 										<li 
 											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedMusimUmrah === String(season.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
@@ -1380,17 +1333,6 @@
 						{#if isKategoriUmrahOpen}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
-									<li 
-										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-										onclick={() => {
-											selectedKategoriUmrah = '';
-											selectedAirline = '';
-											selectedTarikhUmrah = '';
-											isKategoriUmrahOpen = false;
-										}}
-									>
-										Pilih Kategori Umrah
-									</li>
 									{#each umrahCategories as category}
 										<li 
 											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedKategoriUmrah === String(category.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
@@ -1437,16 +1379,6 @@
 						{#if isAirlineOpen}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
-									<li 
-										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-										onclick={() => {
-											selectedAirline = '';
-											selectedTarikhUmrah = '';
-											isAirlineOpen = false;
-										}}
-									>
-										Pilih Airline
-									</li>
 									{#each airlines as airline}
 										<li 
 											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedAirline === String(airline.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
@@ -1499,15 +1431,6 @@
 						{#if isTarikhUmrahOpen && selectedAirline && filteredUmrahDates.length > 0}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
-									<li 
-										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-										onclick={() => {
-											selectedTarikhUmrah = '';
-											isTarikhUmrahOpen = false;
-										}}
-									>
-										Pilih Tarikh
-									</li>
 									{#each filteredUmrahDates as date}
 										<li 
 											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedTarikhUmrah === String(date.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
@@ -1559,15 +1482,6 @@
 						{#if isTarikhOpen && selectedDestinasi && filteredOutboundDates.length > 0}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
-									<li 
-										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-										onclick={() => {
-											selectedTarikh = '';
-											isTarikhOpen = false;
-										}}
-									>
-										Pilih Tarikh
-									</li>
 									{#each filteredOutboundDates as date}
 										<li 
 											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedTarikh === String(date.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
@@ -1620,15 +1534,6 @@
 							{#if isPilihBilikOpen && (dynamicRoomOptions?.length || 0) > 0}
 								<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 									<ul class="py-1">
-										<li 
-											class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-											onclick={() => {
-												selectedRoomType = '';
-												isPilihBilikOpen = false;
-											}}
-										>
-											Pilih Jenis Bilik
-										</li>
 										{#each (dynamicRoomOptions.length > 0 ? dynamicRoomOptions : fallbackRoomOptions) as opt}
 											<li 
 												class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedRoomType === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
@@ -1675,15 +1580,6 @@
 						{#if isBilanganOpen}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
-									<li 
-										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-										onclick={() => {
-											selectedBilangan = '';
-											isBilanganOpen = false;
-										}}
-									>
-										Pilih Bilangan Peserta Tambahan
-									</li>
 									{#each Array.from({length: 21}, (_, i) => i) as num}
 										<li 
 											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedBilangan === num ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
@@ -1726,14 +1622,14 @@
 				</div>
 			{/if}
 
-			<div class="col-span-full border border-[#e5e7eb] rounded-[10px] p-5 mb-4 bg-[#f9fafb]">
+			<div class="col-span-full border border-[#e5e7eb] rounded-[10px] p-4 sm:p-5 mb-4 bg-[#f9fafb]">
 				<h4 class="text-[16px] font-semibold text-gray-700 m-0 mb-4 pb-2 border-b-2 border-[#d1d5db]">
 					Peserta 1
 					{#if samakanData}
 						<span class="bg-[#059669] text-white text-[10px] px-2 py-[2px] rounded-full ml-2">Data Disalin</span>
 					{/if}
 				</h4>
-				<div class="grid grid-cols-2 gap-4 max-[720px]:grid-cols-1">
+				<div class="grid grid-cols-2 gap-3 sm:gap-4 max-[720px]:grid-cols-1">
 					<div class="flex flex-col gap-2">
 						<label class="text-[13px] font-semibold text-gray-700" for="peserta_nama_1">Nama Peserta 1<span class="text-red-500 ml-1">*</span></label>
 						<input 
@@ -1771,11 +1667,11 @@
 			{#if selectedBilangan && pesertaData.length > 0}
 				<!-- Peserta tambahan (Peserta 2, 3, dst) hanya muncul jika bilangan > 0 -->
 				{#each pesertaData as peserta, index}
-					<div class="col-span-full border border-[#e5e7eb] rounded-[10px] p-5 mb-4 bg-[#f9fafb]">
+					<div class="col-span-full border border-[#e5e7eb] rounded-[10px] p-4 sm:p-5 mb-4 bg-[#f9fafb]">
 						<h4 class="text-[16px] font-semibold text-gray-700 m-0 mb-4 pb-2 border-b-2 border-[#d1d5db]">
 							Peserta {peserta.id}
 						</h4>
-						<div class="grid grid-cols-2 gap-4 max-[720px]:grid-cols-1">
+						<div class="grid grid-cols-2 gap-3 sm:gap-4 max-[720px]:grid-cols-1">
 							<div class="flex flex-col gap-2">
 								<label class="text-[13px] font-semibold text-gray-700" for="peserta_nama_{peserta.id}">Nama Peserta {peserta.id}<span class="text-red-500 ml-1">*</span></label>
 								<input 
@@ -1806,9 +1702,9 @@
 								/>
 							</div>
 						</div>
-						<div class="col-span-full mt-4">
+						<div class="col-span-full mt-3 sm:mt-4">
 							<p class="text-[13px] font-semibold text-gray-700 mb-2">Kategori Peserta:</p>
-							<div class="flex flex-wrap gap-4 max-[720px]:flex-col max-[720px]:gap-3">
+							<div class="flex flex-wrap gap-3 sm:gap-4 max-[720px]:flex-col max-[720px]:gap-3">
 								<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
 									<input type="checkbox" name="peserta_cwb_{peserta.id}" bind:checked={peserta.cwb} class={checkboxInputClass} />
 									<span>CWB (Child with Bag)</span>
@@ -1828,12 +1724,12 @@
 			{/if}
 
 			{#if showError}
-				<div class="bg-[#fee2e2] border border-[#ef4444] rounded-[10px] p-4 mb-5 text-[#dc2626] text-sm text-center">
+				<div class="bg-[#fee2e2] border border-[#ef4444] rounded-[10px] p-4 mb-4 sm:mb-5 text-[#dc2626] text-sm text-center">
 					<p>{errorMessage}</p>
 				</div>
 			{/if}
 
-			<div class="col-span-full mt-2">
+			<div class="col-span-full mt-3 sm:mt-2">
 				<button type="submit" class="w-full h-[46px] border-0 rounded-[10px] text-white font-semibold tracking-wide bg-gradient-to-r from-[#942392] to-[#942392] shadow-[0_6px_14px_rgba(148,35,146,0.25)] cursor-pointer hover:brightness-105">HANTAR</button>
 			</div>
 		</form>
