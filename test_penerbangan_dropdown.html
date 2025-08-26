@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Penerbangan Dropdown dengan Status</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .dropdown-container {
+            position: relative;
+            margin: 20px 0;
+        }
+        .dropdown-header {
+            height: 44px;
+            padding: 0 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .dropdown-header.disabled {
+            background: #f3f4f6;
+            color: #6b7280;
+            cursor: not-allowed;
+        }
+        .dropdown-options {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .dropdown-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .dropdown-option:hover:not(.disabled) {
+            background: #f3e8ff;
+        }
+        .dropdown-option.disabled {
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .dropdown-option.selected {
+            background: #e9d5ff;
+            color: #7c3aed;
+        }
+        .arrow {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s;
+        }
+        .arrow.rotated {
+            transform: rotate(180deg);
+        }
+        .arrow.disabled {
+            opacity: 0.5;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #374151;
+        }
+        .info-box {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .info-box h4 {
+            margin-top: 0;
+            color: #0369a1;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Penerbangan Dropdown dengan Status "Tidak Tersedia"</h1>
+    
+    <div class="info-box">
+        <h4>📋 Penjelasan</h4>
+        <p>Dropdown ini menampilkan penerbangan dengan status "Tidak Tersedia" untuk penerbangan yang tidak memiliki tanggal umrah sama sekali untuk musim dan kategori yang dipilih.</p>
+    </div>
+    
+    <div class="section">
+        <h3>Simulasi Data</h3>
+        <p><strong>Musim Umrah:</strong> <span id="selectedMusim">Ramadan</span></p>
+        <p><strong>Kategori Umrah:</strong> <span id="selectedKategori">Ekonomi</span></p>
+        <p><strong>Status:</strong> <span id="status">Semua penerbangan tersedia</span></p>
+    </div>
+
+    <div class="section">
+        <h3>Dropdown Penerbangan</h3>
+        <div class="dropdown-container">
+            <div class="dropdown-header" id="penerbanganHeader" onclick="togglePenerbanganDropdown()">
+                <span id="selectedPenerbanganText">Pilih Penerbangan</span>
+                <svg class="arrow" id="penerbanganArrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </div>
+            <div class="dropdown-options" id="penerbanganOptions" style="display: none;">
+                <!-- Options will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Test Scenarios</h3>
+        <button onclick="setScenario('all-available')">Semua Penerbangan Tersedia</button>
+        <button onclick="setScenario('some-unavailable')">Beberapa Penerbangan Tidak Tersedia</button>
+        <button onclick="setScenario('none-available')">Semua Penerbangan Tidak Tersedia</button>
+    </div>
+
+    <script>
+        // Simulasi data
+        let airlines = [
+            { id: 1, name: "Malaysia Airlines" },
+            { id: 2, name: "Saudi Airlines" },
+            { id: 3, name: "Turkish Airlines" },
+            { id: 4, name: "Emirates" },
+            { id: 5, name: "Qatar Airways" }
+        ];
+
+        let umrahDates = [
+            { airline_id: 1, umrah_season_id: 1, umrah_category_id: 1 },
+            { airline_id: 2, umrah_season_id: 1, umrah_category_id: 1 },
+            { airline_id: 3, umrah_season_id: 1, umrah_category_id: 1 }
+        ];
+
+        let selectedMusim = 1;
+        let selectedKategori = 1;
+        let selectedPenerbangan = '';
+        let isDropdownOpen = false;
+
+        function buildPenerbanganOptions() {
+            const options = [];
+            const airlineMap = new Map();
+            
+            // Filter umrah dates berdasarkan musim dan kategori
+            const relevantDates = umrahDates.filter(date => 
+                String(date.umrah_season_id) === String(selectedMusim) && 
+                String(date.umrah_category_id) === String(selectedKategori)
+            );
+            
+            // Group by airline and check availability
+            relevantDates.forEach(date => {
+                const airlineId = String(date.airline_id);
+                if (!airlineMap.has(airlineId)) {
+                    airlineMap.set(airlineId, {
+                        id: airlineId,
+                        hasDates: true
+                    });
+                }
+            });
+            
+            // Build options for all airlines
+            airlines.forEach(airline => {
+                const airlineId = String(airline.id);
+                const hasDates = airlineMap.has(airlineId);
+                
+                options.push({
+                    value: airlineId,
+                    label: hasDates ? airline.name : `${airline.name} (Tidak Tersedia)`,
+                    disabled: !hasDates
+                });
+            });
+            
+            return options;
+        }
+
+        function updateDropdown() {
+            const options = buildPenerbanganOptions();
+            const optionsContainer = document.getElementById('penerbanganOptions');
+            const header = document.getElementById('penerbanganHeader');
+            const arrow = document.getElementById('penerbanganArrow');
+            
+            // Clear existing options
+            optionsContainer.innerHTML = '';
+            
+            // Add new options
+            options.forEach(opt => {
+                const li = document.createElement('li');
+                li.className = `dropdown-option ${opt.disabled ? 'disabled' : ''} ${selectedPenerbangan === opt.value ? 'selected' : ''}`;
+                li.textContent = opt.label;
+                li.onclick = () => {
+                    if (!opt.disabled) {
+                        selectedPenerbangan = opt.value;
+                        document.getElementById('selectedPenerbanganText').textContent = opt.label;
+                        togglePenerbanganDropdown();
+                    }
+                };
+                optionsContainer.appendChild(li);
+            });
+            
+            // Update header state
+            const hasAvailableOptions = options.some(opt => !opt.disabled);
+            if (hasAvailableOptions) {
+                header.classList.remove('disabled');
+                arrow.classList.remove('disabled');
+            } else {
+                header.classList.add('disabled');
+                arrow.classList.add('disabled');
+            }
+            
+            // Update status
+            const availableCount = options.filter(opt => !opt.disabled).length;
+            const totalCount = options.length;
+            document.getElementById('status').textContent = `${availableCount} dari ${totalCount} penerbangan tersedia`;
+        }
+
+        function togglePenerbanganDropdown() {
+            const options = document.getElementById('penerbanganOptions');
+            const arrow = document.getElementById('penerbanganArrow');
+            
+            if (options.style.display === 'none') {
+                options.style.display = 'block';
+                arrow.classList.add('rotated');
+                isDropdownOpen = true;
+            } else {
+                options.style.display = 'none';
+                arrow.classList.remove('rotated');
+                isDropdownOpen = false;
+            }
+        }
+
+        function setScenario(scenario) {
+            switch(scenario) {
+                case 'all-available':
+                    umrahDates = [
+                        { airline_id: 1, umrah_season_id: 1, umrah_category_id: 1 },
+                        { airline_id: 2, umrah_season_id: 1, umrah_category_id: 1 },
+                        { airline_id: 3, umrah_season_id: 1, umrah_category_id: 1 },
+                        { airline_id: 4, umrah_season_id: 1, umrah_category_id: 1 },
+                        { airline_id: 5, umrah_season_id: 1, umrah_category_id: 1 }
+                    ];
+                    break;
+                case 'some-unavailable':
+                    umrahDates = [
+                        { airline_id: 1, umrah_season_id: 1, umrah_category_id: 1 },
+                        { airline_id: 3, umrah_season_id: 1, umrah_category_id: 1 }
+                    ];
+                    break;
+                case 'none-available':
+                    umrahDates = [];
+                    break;
+            }
+            
+            selectedPenerbangan = '';
+            document.getElementById('selectedPenerbanganText').textContent = 'Pilih Penerbangan';
+            document.getElementById('penerbanganOptions').style.display = 'none';
+            document.getElementById('penerbanganArrow').classList.remove('rotated');
+            
+            updateDropdown();
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const container = document.querySelector('.dropdown-container');
+            if (!container.contains(event.target)) {
+                document.getElementById('penerbanganOptions').style.display = 'none';
+                document.getElementById('penerbanganArrow').classList.remove('rotated');
+                isDropdownOpen = false;
+            }
+        });
+
+        // Initialize
+        updateDropdown();
+    </script>
+</body>
+</html>

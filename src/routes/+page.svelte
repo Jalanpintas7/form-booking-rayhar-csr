@@ -14,6 +14,9 @@
 	let showSuccess = $state(false);
 	let showError = $state(false);
 	let errorMessage = $state('');
+	let redirectTimer = $state(null);
+	let countdownInterval = $state(null);
+	let countdownSeconds = $state(5);
 
 	// State untuk mengontrol visibility form
 	let selectedPackageType = $state('');
@@ -156,8 +159,150 @@
 		{ value: 'quintuple', label: 'Bilik Quintuple (Tidak Tersedia)', disabled: true }
 	];
 
+	// Fallback static options if no airlines have dates
+	const fallbackAirlineOptions = $derived(() => {
+		return airlines.map(airline => ({
+			value: String(airline.id),
+			label: `${airline.name} (Tidak Tersedia)`,
+			disabled: true
+		}));
+	});
+
+	// Fallback static options if no categories have dates
+	const fallbackCategoryOptions = $derived(() => {
+		return umrahCategories.map(category => ({
+			value: String(category.id),
+			label: `${category.name} (Tidak Tersedia)`,
+			disabled: true
+		}));
+	});
+
+	// Fallback static options if no destinations have dates
+	const fallbackDestinationOptions = $derived(() => {
+		return destinations.map(destination => ({
+			value: String(destination.id),
+			label: `${destination.name} (Tidak Tersedia)`,
+			disabled: true
+		}));
+	});
+
 	// Derived room options from selected umrah date record
 	let dynamicRoomOptions = $state([]);
+
+	// Derived airline options based on selected musim and kategori
+	let dynamicAirlineOptions = $state([]);
+
+	// Derived category options based on selected musim
+	let dynamicCategoryOptions = $state([]);
+
+	// Derived destination options based on availability
+	let dynamicDestinationOptions = $state([]);
+
+	function buildDestinationOptionsFromOutboundDates() {
+		const options = [];
+		const destinationMap = new Map();
+		
+		// Group by destination and check availability
+		outboundDates.forEach(date => {
+			const destinationId = String(date.destination_id);
+			if (!destinationMap.has(destinationId)) {
+				destinationMap.set(destinationId, {
+					id: destinationId,
+					hasDates: true
+				});
+			}
+		});
+		
+		// Build options for all destinations
+		destinations.forEach(destination => {
+			const destinationId = String(destination.id);
+			const hasDates = destinationMap.has(destinationId);
+			
+			options.push({
+				value: destinationId,
+				label: hasDates ? destination.name : `${destination.name} (Tidak Tersedia)`,
+				disabled: !hasDates
+			});
+		});
+		
+		return options;
+	}
+
+	function buildCategoryOptionsFromUmrahDates(musimId) {
+		if (!musimId) return [];
+		
+		const options = [];
+		const categoryMap = new Map();
+		
+		// Filter umrah dates berdasarkan musim
+		const relevantDates = umrahDates.filter(date => 
+			String(date.umrah_season_id) === String(musimId)
+		);
+		
+		// Group by category and check availability
+		relevantDates.forEach(date => {
+			const categoryId = String(date.umrah_category_id);
+			if (!categoryMap.has(categoryId)) {
+				categoryMap.set(categoryId, {
+					id: categoryId,
+					hasDates: true
+				});
+			}
+		});
+		
+		// Build options for all categories
+		umrahCategories.forEach(category => {
+			const categoryId = String(category.id);
+			const hasDates = categoryMap.has(categoryId);
+			
+			options.push({
+				value: categoryId,
+				label: hasDates ? category.name : `${category.name} (Tidak Tersedia)`,
+				disabled: !hasDates
+			});
+		});
+		
+		return options;
+	}
+
+	function buildAirlineOptionsFromUmrahDates(musimId, kategoriId) {
+		if (!musimId || !kategoriId) return [];
+		
+		const options = [];
+		const airlineMap = new Map();
+		
+		// Filter umrah dates berdasarkan musim dan kategori
+		const relevantDates = umrahDates.filter(date => 
+			String(date.umrah_season_id) === String(musimId) && 
+			String(date.umrah_category_id) === String(kategoriId)
+		);
+		
+		// Group by airline and check availability
+		relevantDates.forEach(date => {
+			const airlineId = String(date.airline_id);
+			if (!airlineMap.has(airlineId)) {
+				airlineMap.set(airlineId, {
+					id: airlineId,
+					name: airlines.find(a => String(a.id) === airlineId)?.name || 'Unknown Airline',
+					hasDates: true
+				});
+			}
+		});
+		
+		// Build options for all airlines
+		airlines.forEach(airline => {
+			const airlineId = String(airline.id);
+			const hasDates = airlineMap.has(airlineId);
+			
+			options.push({
+				value: airlineId,
+				label: hasDates ? airline.name : `${airline.name} (Tidak Tersedia)`,
+				disabled: !hasDates
+			});
+		});
+		
+		return options;
+	}
 
 	function buildRoomOptionsFromRecord(record) {
 		if (!record || typeof record !== 'object') return [];
@@ -214,6 +359,34 @@
 		const built = buildRoomOptionsFromRecord(rec);
 		dynamicRoomOptions = built.length > 0 ? built : fallbackRoomOptions;
 	});
+
+	// Recompute dynamic airline options when musim or kategori changes
+	$effect(() => {
+		if (!selectedMusimUmrah || !selectedKategoriUmrah) {
+			dynamicAirlineOptions = [];
+			return;
+		}
+		
+		const built = buildAirlineOptionsFromUmrahDates(selectedMusimUmrah, selectedKategoriUmrah);
+		dynamicAirlineOptions = built.length > 0 ? built : fallbackAirlineOptions;
+	});
+
+	// Recompute dynamic category options when musim changes
+	$effect(() => {
+		if (!selectedMusimUmrah) {
+			dynamicCategoryOptions = [];
+			return;
+		}
+		
+		const built = buildCategoryOptionsFromUmrahDates(selectedMusimUmrah);
+		dynamicCategoryOptions = built.length > 0 ? built : fallbackCategoryOptions;
+	});
+
+	// Recompute dynamic destination options when outboundDates changes
+	$effect(() => {
+		const built = buildDestinationOptionsFromOutboundDates();
+		dynamicDestinationOptions = built.length > 0 ? built : fallbackDestinationOptions;
+	});
 	
 	// State untuk filtered dates
 	let filteredOutboundDates = $state([]);
@@ -223,17 +396,8 @@
 	let pesertaData = $state([]);
 	
 	// State untuk peserta 1 (selalu ada)
-	let peserta1 = $state({
-		id: 1,
-		nama: '',
-		nokp: '',
-		cwb: false,
-		infant: false,
-		cnb: false
-	});
-	
-	// State untuk samakan data checkbox
-	let samakanData = $state(true);
+	let peserta1Nama = $state('');
+	let peserta1Nokp = $state('');
 	
 	// State untuk form utama (untuk sync dengan Peserta 1)
 	let mainFormData = $state({
@@ -403,13 +567,11 @@
 		}
 	});
 	
-	// Effect untuk samakan data ke Peserta 1
+	// Effect untuk samakan data ke Peserta 1 (selalu aktif)
 	$effect(() => {
-		if (samakanData) {
-			// Copy data dari form utama ke Peserta 1
-			peserta1.nama = mainFormData.nama;
-			peserta1.nokp = mainFormData.nokp;
-		}
+		// Copy data dari form utama ke Peserta 1 secara otomatis
+		peserta1Nama = mainFormData.nama;
+		peserta1Nokp = mainFormData.nokp;
 	});
 
 	// Debug: log data ketika komponen dimuat
@@ -486,6 +648,13 @@
 		console.log('================================');
 		
 		console.log('==================');
+	});
+
+	// Cleanup effect untuk clear timer ketika komponen di-unmount
+	$effect(() => {
+		return () => {
+			cleanupTimers();
+		};
 	});
 
 	function handlePhoneInput(event) {
@@ -635,6 +804,18 @@
 		return price.toLocaleString('ms-MY');
 	}
 
+	// Cleanup function untuk clear timer
+	function cleanupTimers() {
+		if (redirectTimer) {
+			clearTimeout(redirectTimer);
+			redirectTimer = null;
+		}
+		if (countdownInterval) {
+			clearInterval(countdownInterval);
+			countdownInterval = null;
+		}
+	}
+
 	// Function untuk mengupdate data peserta berdasarkan jumlah
 	function updatePesertaData(bilangan) {
 		const jumlah = parseInt(bilangan) || 0;
@@ -658,7 +839,89 @@
 	{#if showSuccess}
 		<div class="bg-[#d1fae5] border border-[#10b981] rounded-[14px] p-4 sm:p-7 text-center max-w-[720px] mx-auto">
 			<h3 class="text-[#065f46] m-0 mb-3 text-2xl font-semibold">Terima Kasih!</h3>
-			<p class="text-[#047857] m-0 text-base">Maklumat anda berjaya dihantar.</p>
+			<p class="text-[#047857] m-0 text-base mb-4">Maklumat anda berjaya dihantar.</p>
+			<div class="bg-white rounded-lg p-3 inline-block mb-4">
+				<p class="text-[#065f46] m-0 text-sm font-medium">
+					Anda akan kembali ke form dalam <span class="font-bold text-lg">{countdownSeconds}</span> saat
+				</p>
+			</div>
+			<button 
+				type="button" 
+				class="bg-[#10b981] hover:bg-[#059669] text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200"
+				onclick={() => {
+					cleanupTimers();
+					showSuccess = false;
+					// Reset semua form data
+					selectedGelaran = '';
+					mainFormData = { nama: '', nokp: '', gelaran: '' };
+					selectedNegeri = '';
+					selectedBandar = '';
+					poskodValue = '';
+					poskodError = '';
+					poskodLoading = false;
+					poskodValidated = false;
+					selectedDestinasi = '';
+					selectedTarikh = '';
+					selectedBilangan = '';
+					selectedMusimUmrah = '';
+					selectedKategoriUmrah = '';
+					selectedAirline = '';
+					selectedTarikhUmrah = '';
+					perluPartnerBilik = false;
+					selectedRoomType = '';
+					selectedCawangan = '';
+					selectedKonsultan = '';
+					selectedPackageType = '';
+					pesertaData = [];
+					peserta1Nama = '';
+					peserta1Nokp = '';
+					dynamicNegeriList = [];
+					dynamicBandarList = [];
+					
+					// Reset semua dropdown states
+					isGelaranOpen = false;
+					isPakejOpen = false;
+					isDestinasiOpen = false;
+					isMusimUmrahOpen = false;
+					isKategoriUmrahOpen = false;
+					isAirlineOpen = false;
+					isTarikhUmrahOpen = false;
+					isTarikhOpen = false;
+					isPilihBilikOpen = false;
+					isBilanganOpen = false;
+					isNegeriOpen = false;
+					isBandarOpen = false;
+					isCawanganOpen = false;
+					isKonsultanOpen = false;
+					
+					// Reset visibility sections
+					showDestinationSection = false;
+					showDateSection = false;
+					showUmrahSeasonSection = false;
+					showUmrahCategorySection = false;
+					showAirlineSection = false;
+					showUmrahDateSection = false;
+					
+					// Reset filtered data
+					filteredOutboundDates = [];
+					filteredUmrahDates = [];
+					filteredBranches = [];
+					filteredDestinations = [];
+					searchTermBranches = '';
+					searchTermDestinations = '';
+					
+					// Reset dynamic options
+					dynamicRoomOptions = [];
+					dynamicAirlineOptions = [];
+					dynamicCategoryOptions = [];
+					dynamicDestinationOptions = [];
+					
+					countdownSeconds = 5;
+					countdownInterval = null;
+				}}
+			>
+				Kembali ke Form Sekarang
+			</button>
 		</div>
 	{:else}
 		<div class="bg-white border border-[#e5e7eb] rounded-[14px] shadow-[0_10px_24px_rgba(17,24,39,0.06)] p-4 sm:p-7 max-w-[720px] mx-auto mb-6 sm:mb-10">
@@ -676,6 +939,89 @@
 					if (result.type === 'success') {
 						showSuccess = true;
 						showError = false;
+						
+						// Set timer untuk redirect kembali ke form setelah 5 detik
+						countdownSeconds = 5;
+						countdownInterval = setInterval(() => {
+							countdownSeconds--;
+							if (countdownSeconds <= 0) {
+								clearInterval(countdownInterval);
+								countdownInterval = null;
+							}
+						}, 1000);
+						
+						redirectTimer = setTimeout(() => {
+							showSuccess = false;
+							// Reset semua form data
+							selectedGelaran = '';
+							mainFormData = { nama: '', nokp: '', gelaran: '' };
+							selectedNegeri = '';
+							selectedBandar = '';
+							poskodValue = '';
+							poskodError = '';
+							poskodLoading = false;
+							poskodValidated = false;
+							selectedDestinasi = '';
+							selectedTarikh = '';
+							selectedBilangan = '';
+							selectedMusimUmrah = '';
+							selectedKategoriUmrah = '';
+							selectedAirline = '';
+							selectedTarikhUmrah = '';
+							perluPartnerBilik = false;
+							selectedRoomType = '';
+							selectedCawangan = '';
+							selectedKonsultan = '';
+							selectedPackageType = '';
+							pesertaData = [];
+							peserta1Nama = '';
+							peserta1Nokp = '';
+							dynamicNegeriList = [];
+							dynamicBandarList = [];
+							
+							// Reset semua dropdown states
+							isGelaranOpen = false;
+							isPakejOpen = false;
+							isDestinasiOpen = false;
+							isMusimUmrahOpen = false;
+							isKategoriUmrahOpen = false;
+							isAirlineOpen = false;
+							isTarikhUmrahOpen = false;
+							isTarikhOpen = false;
+							isPilihBilikOpen = false;
+							isBilanganOpen = false;
+							isNegeriOpen = false;
+							isBandarOpen = false;
+							isCawanganOpen = false;
+							isKonsultanOpen = false;
+							
+							// Reset visibility sections
+							showDestinationSection = false;
+							showDateSection = false;
+							showUmrahSeasonSection = false;
+							showUmrahCategorySection = false;
+							showAirlineSection = false;
+							showUmrahDateSection = false;
+							
+							// Reset filtered data
+							filteredOutboundDates = [];
+							filteredUmrahDates = [];
+							filteredBranches = [];
+							filteredDestinations = [];
+							searchTermBranches = '';
+							searchTermDestinations = '';
+							
+							// Reset dynamic options
+							dynamicRoomOptions = [];
+							dynamicAirlineOptions = [];
+							dynamicCategoryOptions = [];
+							dynamicDestinationOptions = [];
+							
+							// Clear timer
+							redirectTimer = null;
+							countdownInterval = null;
+							countdownSeconds = 5;
+						}, 5000); // 5 detik
 					} else if (result.type === 'failure') {
 						showError = true;
 						errorMessage = result.data?.error || 'Ralat berlaku. Sila cuba lagi.';
@@ -857,6 +1203,59 @@
 			</div>
 
 			<div class="flex flex-col gap-2">
+				<label class="text-[13px] font-semibold text-gray-700" for="bandar">Bandar<span class="text-red-500 ml-1">*</span></label>
+				<div class="relative">
+					<div 
+						class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+						onclick={() => {
+							if (selectedNegeri && Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) {
+								isBandarOpen = !isBandarOpen;
+							}
+						}}
+						onblur={() => setTimeout(() => isBandarOpen = false, 200)}
+					>
+						<span class={selectedBandar ? 'text-gray-900' : 'text-gray-500'}>
+							{selectedBandar || 'Sila masukkan poskod yang sah terlebih dahulu'}
+						</span>
+						<svg 
+							class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isBandarOpen ? 'rotate-180' : ''} ${!selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) ? 'opacity-50' : ''}`}
+							fill="none" 
+							stroke="currentColor" 
+							viewBox="0 0 24 24"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+						</svg>
+					</div>
+					
+					{#if isBandarOpen && selectedNegeri && Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0}
+						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-96 overflow-y-auto">
+							<ul class="py-1">
+								{#each dynamicBandarList as b}
+									<li 
+										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedBandar === b ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+										onclick={() => {
+											selectedBandar = b;
+											// Only clear postcode error if bandar is selected and poskod is valid
+											if (selectedBandar && poskodError && poskodValidated && !poskodLoading) {
+												poskodError = '';
+											}
+											isBandarOpen = false;
+										}}
+									>
+										{b}
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+				</div>
+				<input type="hidden" name="bandar" value={selectedBandar} required />
+				{#if !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0)}
+					<div class="text-gray-500 text-xs mt-1">Bandar akan dipilih secara automatik selepas poskod yang sah dimasukkan</div>
+				{/if}
+			</div>
+
+			<div class="flex flex-col gap-2">
 				<label class="text-[13px] font-semibold text-gray-700" for="negeri">Negeri<span class="text-red-500 ml-1">*</span></label>
 				<div class="relative">
 					<div 
@@ -869,7 +1268,7 @@
 						onblur={() => setTimeout(() => isNegeriOpen = false, 200)}
 					>
 						<span class={selectedNegeri ? 'text-gray-900' : 'text-gray-500'}>
-							{selectedNegeri || (Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0 ? 'Select Negeri' : 'Sila masukkan poskod yang sah terlebih dahulu')}
+							{selectedNegeri || 'Sila masukkan poskod yang sah terlebih dahulu'}
 						</span>
 						<svg 
 							class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isNegeriOpen ? 'rotate-180' : ''} ${!(Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0) ? 'opacity-50' : ''}`}
@@ -884,16 +1283,6 @@
 					{#if isNegeriOpen && Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0}
 						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-96 overflow-y-auto">
 							<ul class="py-1">
-								<li 
-									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-									onclick={() => {
-										selectedNegeri = '';
-										selectedBandar = '';
-										isNegeriOpen = false;
-									}}
-								>
-									Select Negeri
-								</li>
 								{#each dynamicNegeriList as n}
 									<li 
 										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedNegeri === n ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
@@ -917,74 +1306,6 @@
 				<input type="hidden" name="negeri" value={selectedNegeri} required />
 				{#if !(Array.isArray(dynamicNegeriList) && dynamicNegeriList.length > 0)}
 					<div class="text-gray-500 text-xs mt-1">Negeri akan dipilih secara automatik selepas poskod yang sah dimasukkan</div>
-				{/if}
-			</div>
-
-			<div class="flex flex-col gap-2">
-				<label class="text-[13px] font-semibold text-gray-700" for="bandar">Bandar<span class="text-red-500 ml-1">*</span></label>
-				<div class="relative">
-					<div 
-						class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
-						onclick={() => {
-							if (selectedNegeri && Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) {
-								isBandarOpen = !isBandarOpen;
-							}
-						}}
-						onblur={() => setTimeout(() => isBandarOpen = false, 200)}
-					>
-						<span class={selectedBandar ? 'text-gray-900' : 'text-gray-500'}>
-							{selectedBandar || (() => {
-								if (!selectedNegeri) return 'Sila pilih negeri terlebih dahulu';
-								if (!(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0)) return 'Sila masukkan poskod yang sah terlebih dahulu';
-								return 'Select Bandar';
-							})()}
-						</span>
-						<svg 
-							class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isBandarOpen ? 'rotate-180' : ''} ${!selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0) ? 'opacity-50' : ''}`}
-							fill="none" 
-							stroke="currentColor" 
-							viewBox="0 0 24 24"
-						>
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-						</svg>
-					</div>
-					
-					{#if isBandarOpen && selectedNegeri && Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0}
-						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-96 overflow-y-auto">
-							<ul class="py-1">
-								<li 
-									class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] text-gray-700"
-									onclick={() => {
-										selectedBandar = '';
-										isBandarOpen = false;
-									}}
-								>
-									Select Bandar
-								</li>
-								{#each dynamicBandarList as b}
-									<li 
-										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedBandar === b ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
-										onclick={() => {
-											selectedBandar = b;
-											// Only clear postcode error if bandar is selected and poskod is valid
-											if (selectedBandar && poskodError && poskodValidated && !poskodLoading) {
-												poskodError = '';
-											}
-											isBandarOpen = false;
-										}}
-									>
-										{b}
-									</li>
-								{/each}
-							</ul>
-						</div>
-					{/if}
-				</div>
-				<input type="hidden" name="bandar" value={selectedBandar} required />
-				{#if !selectedNegeri || !(Array.isArray(dynamicBandarList) && dynamicBandarList.length > 0)}
-					<div class="text-gray-500 text-xs mt-1">
-						{!selectedNegeri ? 'Bandar akan dipilih secara automatik selepas negeri dipilih' : 'Bandar akan dipilih secara automatik selepas poskod yang sah dimasukkan'}
-					</div>
 				{/if}
 			</div>
 
@@ -1116,12 +1437,7 @@
 				<input type="hidden" name="konsultan" value={selectedKonsultan} />
 			</div>
 
-			<div class="col-span-full">
-				<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
-					<input type="checkbox" name="tambah_sebagai_peserta_1" bind:checked={samakanData} class={checkboxInputClass} />
-					<span>Tambahkan sebagai peserta 1</span>
-				</label>
-			</div>
+
 
 			<div class="col-span-full flex items-center gap-5 my-[30px]">
 				<hr class="flex-1 h-px m-0 border-0 bg-gray-300">
@@ -1177,13 +1493,15 @@
 					<label class="text-[13px] font-semibold text-gray-700" for="destinasi">Destinasi<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
+							class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${(dynamicDestinationOptions?.length || 0) === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
 							onclick={() => {
-								isDestinasiOpen = !isDestinasiOpen;
-								if (!isDestinasiOpen) {
-									searchTermDestinations = '';
-									filteredDestinations = [];
-									clearTimeout(searchTimeoutDestinations);
+								if ((dynamicDestinationOptions?.length || 0) > 0) {
+									isDestinasiOpen = !isDestinasiOpen;
+									if (!isDestinasiOpen) {
+										searchTermDestinations = '';
+										filteredDestinations = [];
+										clearTimeout(searchTimeoutDestinations);
+									}
 								}
 							}}
 							onblur={() => setTimeout(() => {
@@ -1194,10 +1512,13 @@
 							}, 200)}
 						>
 							<span class={selectedDestinasi ? 'text-gray-900' : 'text-gray-500'}>
-								{selectedDestinasi ? destinations.find(d => String(d.id) === String(selectedDestinasi))?.name || 'Pilih Destinasi' : 'Pilih Destinasi'}
+								{selectedDestinasi ? (() => {
+									const destinationOption = (dynamicDestinationOptions.length > 0 ? dynamicDestinationOptions : fallbackDestinationOptions).find(opt => opt.value === selectedDestinasi);
+									return destinationOption ? destinationOption.label : 'Pilih Destinasi';
+								})() : 'Pilih Destinasi'}
 							</span>
 							<svg 
-								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isDestinasiOpen ? 'rotate-180' : ''}`}
+								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isDestinasiOpen ? 'rotate-180' : ''} ${(dynamicDestinationOptions?.length || 0) === 0 ? 'opacity-50' : ''}`}
 								fill="none" 
 								stroke="currentColor" 
 								viewBox="0 0 24 24"
@@ -1206,46 +1527,48 @@
 							</svg>
 						</div>
 						
-						{#if isDestinasiOpen}
+						{#if isDestinasiOpen && (dynamicDestinationOptions?.length || 0) > 0}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-96 overflow-y-auto">
-															<!-- Search input untuk destinasi di atas dropdown -->
-							<div class="sticky top-0 bg-white p-4 border-b border-gray-200 rounded-t-[10px]">
-								<div class="relative">
-									<input 
-										type="text" 
-										placeholder="Ketik untuk mencari destinasi..." 
-										class="w-full h-11 pl-10 pr-4 py-2 text-[14px] border border-[#e5e7eb] rounded-[10px] focus:outline-none focus:border-[#942392] focus:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] transition-all duration-200"
-										oninput={(e) => {
-											clearTimeout(searchTimeoutDestinations);
-											searchTimeoutDestinations = setTimeout(() => {
-												searchTermDestinations = e.target.value.toLowerCase();
-												if (searchTermDestinations === '') {
-													filteredDestinations = [];
-												} else {
-													// Filter destinations berdasarkan search term secara real-time
-													filteredDestinations = destinations.filter(d => 
-														d.name.toLowerCase().includes(searchTermDestinations)
-													);
-												}
-											}, 300);
-										}}
-									/>
-									<svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-									</svg>
+								<!-- Search input untuk destinasi di atas dropdown -->
+								<div class="sticky top-0 bg-white p-4 border-b border-gray-200 rounded-t-[10px]">
+									<div class="relative">
+										<input 
+											type="text" 
+											placeholder="Ketik untuk mencari destinasi..." 
+											class="w-full h-11 pl-10 pr-4 py-2 text-[14px] border border-[#e5e7eb] rounded-[10px] focus:outline-none focus:border-[#942392] focus:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] transition-all duration-200"
+											oninput={(e) => {
+												clearTimeout(searchTimeoutDestinations);
+												searchTimeoutDestinations = setTimeout(() => {
+													searchTermDestinations = e.target.value.toLowerCase();
+													if (searchTermDestinations === '') {
+														filteredDestinations = [];
+													} else {
+														// Filter destinations berdasarkan search term secara real-time
+														filteredDestinations = (dynamicDestinationOptions.length > 0 ? dynamicDestinationOptions : fallbackDestinationOptions).filter(d => 
+															d.label.toLowerCase().includes(searchTermDestinations)
+														);
+													}
+												}, 300);
+											}}
+										/>
+										<svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+										</svg>
+									</div>
 								</div>
-							</div>
-							<ul class="py-1">
-								{#each (filteredDestinations.length > 0 ? filteredDestinations : (filteredDestinations.length === 0 && searchTermDestinations !== '' ? [] : destinations)) as d}
+								<ul class="py-1">
+									{#each (filteredDestinations.length > 0 ? filteredDestinations : (filteredDestinations.length === 0 && searchTermDestinations !== '' ? [] : (dynamicDestinationOptions.length > 0 ? dynamicDestinationOptions : fallbackDestinationOptions))) as d}
 										<li 
-											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedDestinasi === String(d.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+											class={`px-3 py-2 text-[14px] ${d.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedDestinasi === d.value ? 'bg-purple-100 text-purple-700' : ''}`}
 											onclick={() => {
-												selectedDestinasi = String(d.id);
-												selectedTarikh = '';
-												isDestinasiOpen = false;
+												if (!d.disabled) {
+													selectedDestinasi = d.value;
+													selectedTarikh = '';
+													isDestinasiOpen = false;
+												}
 											}}
 										>
-											{d.name}
+											{d.label}
 										</li>
 									{/each}
 									{#if filteredDestinations.length === 0 && searchTermDestinations !== ''}
@@ -1313,15 +1636,22 @@
 					<label class="text-[13px] font-semibold text-gray-700" for="kategori_umrah">Kategori Umrah<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
-							onclick={() => isKategoriUmrahOpen = !isKategoriUmrahOpen}
+							class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${(dynamicCategoryOptions?.length || 0) === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+							onclick={() => {
+								if ((dynamicCategoryOptions?.length || 0) > 0) {
+									isKategoriUmrahOpen = !isKategoriUmrahOpen;
+								}
+							}}
 							onblur={() => setTimeout(() => isKategoriUmrahOpen = false, 200)}
 						>
 							<span class={selectedKategoriUmrah ? 'text-gray-900' : 'text-gray-500'}>
-								{selectedKategoriUmrah ? umrahCategories.find(category => String(category.id) === String(selectedKategoriUmrah))?.name || 'Pilih Kategori Umrah' : 'Pilih Kategori Umrah'}
+								{selectedKategoriUmrah ? (() => {
+									const categoryOption = (dynamicCategoryOptions.length > 0 ? dynamicCategoryOptions : fallbackCategoryOptions).find(opt => opt.value === selectedKategoriUmrah);
+									return categoryOption ? categoryOption.label : 'Pilih Kategori Umrah';
+								})() : 'Pilih Kategori Umrah'}
 							</span>
 							<svg 
-								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isKategoriUmrahOpen ? 'rotate-180' : ''}`}
+								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isKategoriUmrahOpen ? 'rotate-180' : ''} ${(dynamicCategoryOptions?.length || 0) === 0 ? 'opacity-50' : ''}`}
 								fill="none" 
 								stroke="currentColor" 
 								viewBox="0 0 24 24"
@@ -1330,20 +1660,22 @@
 							</svg>
 						</div>
 						
-						{#if isKategoriUmrahOpen}
+						{#if isKategoriUmrahOpen && (dynamicCategoryOptions?.length || 0) > 0}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
-									{#each umrahCategories as category}
+									{#each (dynamicCategoryOptions.length > 0 ? dynamicCategoryOptions : fallbackCategoryOptions) as opt}
 										<li 
-											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedKategoriUmrah === String(category.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+											class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedKategoriUmrah === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
 											onclick={() => {
-												selectedKategoriUmrah = String(category.id);
-												selectedAirline = '';
-												selectedTarikhUmrah = '';
-												isKategoriUmrahOpen = false;
+												if (!opt.disabled) {
+													selectedKategoriUmrah = opt.value;
+													selectedAirline = '';
+													selectedTarikhUmrah = '';
+													isKategoriUmrahOpen = false;
+												}
 											}}
 										>
-											{category.name}
+											{opt.label}
 										</li>
 									{/each}
 								</ul>
@@ -1356,18 +1688,25 @@
 
 			{#if showAirlineSection}
 				<div class="flex flex-col gap-2">
-					<label class="text-[13px] font-semibold text-gray-700" for="airline">Airline<span class="text-red-500 ml-1">*</span></label>
+					<label class="text-[13px] font-semibold text-gray-700" for="airline">Penerbangan<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
-							onclick={() => isAirlineOpen = !isAirlineOpen}
+							class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${(dynamicAirlineOptions?.length || 0) === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+							onclick={() => {
+								if ((dynamicAirlineOptions?.length || 0) > 0) {
+									isAirlineOpen = !isAirlineOpen;
+								}
+							}}
 							onblur={() => setTimeout(() => isAirlineOpen = false, 200)}
 						>
 							<span class={selectedAirline ? 'text-gray-900' : 'text-gray-500'}>
-								{selectedAirline ? airlines.find(airline => String(airline.id) === String(selectedAirline))?.name || 'Pilih Airline' : 'Pilih Airline'}
+								{selectedAirline ? (() => {
+									const airlineOption = (dynamicAirlineOptions.length > 0 ? dynamicAirlineOptions : fallbackAirlineOptions).find(opt => opt.value === selectedAirline);
+									return airlineOption ? airlineOption.label : 'Pilih Penerbangan';
+								})() : 'Pilih Penerbangan'}
 							</span>
 							<svg 
-								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isAirlineOpen ? 'rotate-180' : ''}`}
+								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isAirlineOpen ? 'rotate-180' : ''} ${(dynamicAirlineOptions?.length || 0) === 0 ? 'opacity-50' : ''}`}
 								fill="none" 
 								stroke="currentColor" 
 								viewBox="0 0 24 24"
@@ -1376,19 +1715,21 @@
 							</svg>
 						</div>
 						
-						{#if isAirlineOpen}
+						{#if isAirlineOpen && (dynamicAirlineOptions?.length || 0) > 0}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
-									{#each airlines as airline}
+									{#each (dynamicAirlineOptions.length > 0 ? dynamicAirlineOptions : fallbackAirlineOptions) as opt}
 										<li 
-											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedAirline === String(airline.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+											class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedAirline === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
 											onclick={() => {
-												selectedAirline = String(airline.id);
-												selectedTarikhUmrah = '';
-												isAirlineOpen = false;
+												if (!opt.disabled) {
+													selectedAirline = opt.value;
+													selectedTarikhUmrah = '';
+													isAirlineOpen = false;
+												}
 											}}
 										>
-											{airline.name}
+											{opt.label}
 										</li>
 									{/each}
 								</ul>
@@ -1557,7 +1898,6 @@
 
 				<div class="flex flex-col gap-2">
 					<label class="text-[13px] font-semibold text-gray-700" for="bilangan">Bilangan Peserta Tambahan<span class="text-red-500 ml-1">*</span></label>
-					<p class="text-xs text-gray-600 mt-1 italic">Pilih 0 jika hanya Anda sendiri yang akan pergi</p>
 					<div class="relative">
 						<div 
 							class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
@@ -1602,7 +1942,7 @@
 					<div class="col-span-full">
 						<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
 							<input type="checkbox" name="perlu_partner_bilik" bind:checked={perluPartnerBilik} class={checkboxInputClass} />
-							<span>Perlukah partner bilik?</span>
+							<span>Perlukan partner bilik</span>
 						</label>
 					</div>
 				{/if}
@@ -1616,18 +1956,14 @@
 			
 			
 
-			{#if samakanData}
-				<div class="flex flex-col gap-2">
-					<p class="text-xs text-emerald-600 mt-2 italic">Data pendaftar akan ditambahkan sebagai Peserta 1</p>
-				</div>
-			{/if}
+			<div class="flex flex-col gap-2">
+				<p class="text-xs text-emerald-600 mt-2 italic">Data pendaftar akan ditambahkan sebagai Peserta 1 secara otomatis</p>
+			</div>
 
 			<div class="col-span-full border border-[#e5e7eb] rounded-[10px] p-4 sm:p-5 mb-4 bg-[#f9fafb]">
 				<h4 class="text-[16px] font-semibold text-gray-700 m-0 mb-4 pb-2 border-b-2 border-[#d1d5db]">
 					Peserta 1
-					{#if samakanData}
-						<span class="bg-[#059669] text-white text-[10px] px-2 py-[2px] rounded-full ml-2">Data Disalin</span>
-					{/if}
+					<span class="bg-[#059669] text-white text-[10px] px-2 py-[2px] rounded-full ml-2">Data Disalin</span>
 				</h4>
 				<div class="grid grid-cols-2 gap-3 sm:gap-4 max-[720px]:grid-cols-1">
 					<div class="flex flex-col gap-2">
@@ -1638,11 +1974,11 @@
 							type="text" 
 							placeholder="Nama Penuh Peserta 1" 
 							required 
-							bind:value={peserta1.nama}
+							bind:value={peserta1Nama}
 							oninput={handleNameInput}
 							onkeypress={handleNameKeyPress}
-							readonly={samakanData}
-							class={samakanData ? controlClass + ' bg-gray-100 text-gray-500 cursor-not-allowed focus:border-[#d1d5db] focus:shadow-none' : controlClass}
+							readonly={true}
+							class={controlClass + ' bg-gray-100 text-gray-500 cursor-not-allowed focus:border-[#d1d5db] focus:shadow-none'}
 						/>
 					</div>
 					<div class="flex flex-col gap-2">
@@ -1654,11 +1990,11 @@
 							placeholder="Contoh: 970109015442" 
 							maxlength="12"
 							required 
-							bind:value={peserta1.nokp}
+							bind:value={peserta1Nokp}
 							oninput={handleIdInput}
 							onkeypress={handleIdKeyPress}
-							readonly={samakanData}
-							class={samakanData ? controlClass + ' bg-gray-100 text-gray-500 cursor-not-allowed focus:border-[#d1d5db] focus:shadow-none' : controlClass}
+							readonly={true}
+							class={controlClass + ' bg-gray-100 text-gray-500 cursor-not-allowed focus:border-[#d1d5db] focus:shadow-none'}
 						/>
 					</div>
 				</div>
@@ -1704,10 +2040,10 @@
 						</div>
 						<div class="col-span-full mt-3 sm:mt-4">
 							<p class="text-[13px] font-semibold text-gray-700 mb-2">Kategori Peserta:</p>
-							<div class="flex flex-wrap gap-3 sm:gap-4 max-[720px]:flex-col max-[720px]:gap-3">
+							<div class="flex flex-wrap gap-3 sm:gap-4">
 								<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
 									<input type="checkbox" name="peserta_cwb_{peserta.id}" bind:checked={peserta.cwb} class={checkboxInputClass} />
-									<span>CWB (Child with Bag)</span>
+									<span>CWB</span>
 								</label>
 								<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
 									<input type="checkbox" name="peserta_infant_{peserta.id}" bind:checked={peserta.infant} class={checkboxInputClass} />
@@ -1715,7 +2051,7 @@
 								</label>
 								<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
 									<input type="checkbox" name="peserta_cnb_{peserta.id}" bind:checked={peserta.cnb} class={checkboxInputClass} />
-									<span>CNB (Child No Bag)</span>
+									<span>CNB</span>
 								</label>
 							</div>
 						</div>
