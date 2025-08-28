@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Destinations Dropdown</title>
+    <style>
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+        }
+        .dropdown-content a {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+        }
+        .dropdown-content a:hover {background-color: #f1f1f1}
+        .show {display: block;}
+        .dropdown-btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 16px;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h2>Test Destinations Dropdown</h2>
+    <p>Klik dropdown untuk melihat apakah berfungsi:</p>
+
+    <div class="dropdown">
+        <button onclick="myFunction()" class="dropdown-btn">Dropdown Destinasi</button>
+        <div id="myDropdown" class="dropdown-content">
+            <a href="#" onclick="selectDestination('dest1', 'Bangkok')">Bangkok</a>
+            <a href="#" onclick="selectDestination('dest2', 'Singapore')">Singapore</a>
+            <a href="#" onclick="selectDestination('dest3', 'Tokyo')">Tokyo</a>
+            <a href="#" onclick="selectDestination('dest4', 'Seoul')">Seoul</a>
+        </div>
+    </div>
+
+    <p>Destinasi yang dipilih: <span id="selectedDestination">Belum ada</span></p>
+
+    <script>
+        function myFunction() {
+            document.getElementById("myDropdown").classList.toggle("show");
+        }
+
+        function selectDestination(id, name) {
+            document.getElementById("selectedDestination").textContent = name + " (" + id + ")";
+            document.getElementById("myDropdown").classList.remove("show");
+        }
+
+        // Close the dropdown if the user clicks outside of it
+        window.onclick = function(event) {
+            if (!event.target.matches('.dropdown-btn')) {
+                var dropdowns = document.getElementsByClassName("dropdown-content");
+                var i;
+                for (i = 0; i < dropdowns.length; i++) {
+                    var openDropdown = dropdowns[i];
+                    if (openDropdown.classList.contains('show')) {
+                        openDropdown.classList.remove('show');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

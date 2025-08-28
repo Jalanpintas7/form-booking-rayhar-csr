@@ -168,8 +168,8 @@ export async function load() {
 		// Fetch sales consultants for destinations
 		const { data: consultants, error: consultantsError } = await supabase
 			.from('sales_consultant')
-			.select('id, name, whatsapp_number')
-			.order('name');
+			.select('id, name, whatsapp_number, sales_consultant_number')
+			.order('sales_consultant_number');
 
 		if (consultantsError) {
 			console.error('Error fetching consultants:', consultantsError);
@@ -441,6 +441,8 @@ export const actions = {
 			const bookingId = bookingData[0].id;
 
 			// Simpan data peserta (robustly parse dynamic ids)
+			// Catatan: Untuk peserta tambahan (Peserta 2, 3, dst), field No KP adalah opsional
+			// Hanya nama yang wajib diisi, No KP boleh dikosongkan
 			const pesertaMap = new Map();
 			for (const [key, value] of formData.entries()) {
 				let match = /^peserta_nama_(\d+)$/.exec(String(key));
@@ -487,7 +489,9 @@ export const actions = {
 
 			const pesertaData = [];
 			for (const [id, peserta] of pesertaMap.entries()) {
-				if (!peserta.nama || !peserta.nokp) continue;
+				// Hanya nama yang wajib, No KP opsional untuk peserta tambahan
+				if (!peserta.nama) continue;
+				
 				const trimmedNamaPeserta = peserta.nama;
 				if (!nameOnlyRegex.test(trimmedNamaPeserta)) {
 					console.error(`Invalid peserta name at id ${id}:`, peserta.nama);
@@ -496,46 +500,56 @@ export const actions = {
 						form: maklumat
 					});
 				}
-				const nokpDigits = String(peserta.nokp).replace(/\D/g, '');
-				if (nokpDigits.length !== 12) {
-					console.error(`Invalid NRIC length for peserta ${id}:`, peserta.nokp);
-					return fail(400, { error: `No K/P Peserta ${id} mesti 12 digit`, form: maklumat });
-				}
-				const derivedPeserta = parseMalaysianNRIC(nokpDigits);
-				if (!derivedPeserta || !derivedPeserta.birthDate) {
-					console.error(`Invalid NRIC date for peserta ${id}:`, peserta.nokp);
-					return fail(400, { error: `Tarikh lahir No K/P Peserta ${id} tidak sah`, form: maklumat });
-				}
+				
 				const pesertaRecord = {
 					booking_id: bookingId,
 					nama: trimmedNamaPeserta,
-					nokp: nokpDigits.length === 12 ? nokpDigits : peserta.nokp,
-					cwb: peserta.cwb || false,
-					infant: peserta.infant || false,
-					cnb: peserta.cnb || false
+					nokp: null, // Default null untuk No KP
+					cwb: peserta.kategori === 'cwb',
+					infant: peserta.kategori === 'infant',
+					cnb: peserta.kategori === 'cnb'
 				};
-				if (derivedPeserta && typeof derivedPeserta.age === 'number') {
-					pesertaRecord.age = derivedPeserta.age;
+				
+				// Jika No KP diisi, validasi dan proses
+				if (peserta.nokp && peserta.nokp.trim() !== '') {
+					const nokpDigits = String(peserta.nokp).replace(/\D/g, '');
+					if (nokpDigits.length === 12) {
+						// Validasi No KP jika diisi
+						const derivedPeserta = parseMalaysianNRIC(nokpDigits);
+						if (derivedPeserta && derivedPeserta.birthDate) {
+							pesertaRecord.nokp = nokpDigits;
+							if (derivedPeserta && typeof derivedPeserta.age === 'number') {
+								pesertaRecord.age = derivedPeserta.age;
+							}
+							if (derivedPeserta && derivedPeserta.gender) {
+								pesertaRecord.gender = derivedPeserta.gender;
+							}
+							if (derivedPeserta && derivedPeserta.birthDate instanceof Date && !isNaN(derivedPeserta.birthDate.getTime())) {
+								pesertaRecord.birth_date = derivedPeserta.birthDate.toISOString().slice(0, 10);
+							}
+						} else {
+							console.warn(`Invalid NRIC date for peserta ${id}:`, peserta.nokp);
+							// Tidak return error, hanya warning dan lanjutkan tanpa data derived
+						}
+					} else {
+						console.warn(`Invalid NRIC length for peserta ${id}:`, peserta.nokp);
+						// Tidak return error, hanya warning dan lanjutkan tanpa data derived
+					}
+				} else {
+					console.log(`Peserta ${id} tidak mengisi No KP (opsional)`);
 				}
-				if (derivedPeserta && derivedPeserta.gender) {
-					pesertaRecord.gender = derivedPeserta.gender;
-				}
-				if (derivedPeserta && derivedPeserta.birthDate instanceof Date && !isNaN(derivedPeserta.birthDate.getTime())) {
-					pesertaRecord.birth_date = derivedPeserta.birthDate.toISOString().slice(0, 10);
-				}
+				
 				pesertaData.push(pesertaRecord);
 			}
 			console.log(`Derived ${pesertaData.length} members with age/gender/birth_date where applicable`);
 			
-			// Debug: log checkbox data processing
-			console.log('=== CHECKBOX DATA DEBUG ===');
+			// Debug: log kategori data processing
+			console.log('=== KATEGORI DATA DEBUG ===');
 			for (const [id, peserta] of pesertaMap.entries()) {
 				console.log(`Peserta ${id}:`, {
 					nama: peserta.nama,
 					nokp: peserta.nokp,
-					cwb: peserta.cwb,
-					infant: peserta.infant,
-					cnb: peserta.cnb
+					kategori: peserta.kategori
 				});
 			}
 			console.log('==========================');

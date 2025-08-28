@@ -179,11 +179,19 @@
 
 	// Fallback static options if no destinations have dates
 	const fallbackDestinationOptions = $derived(() => {
-		return destinations.map(destination => ({
+		if (!destinations || destinations.length === 0) {
+			console.log('No destinations for fallback options');
+			return [];
+		}
+		
+		const options = destinations.map(destination => ({
 			value: String(destination.id),
 			label: `${destination.name} (Tidak Tersedia)`,
 			disabled: true
 		}));
+		
+		console.log('Fallback destination options created:', options);
+		return options;
 	});
 
 	// Derived room options from selected umrah date record
@@ -199,32 +207,57 @@
 	let dynamicDestinationOptions = $state([]);
 
 	function buildDestinationOptionsFromOutboundDates() {
+		console.log('=== BUILDING DESTINATION OPTIONS ===');
+		console.log('Input destinations:', destinations);
+		console.log('Input outboundDates:', outboundDates);
+		
+		// Validasi input
+		if (!destinations || !Array.isArray(destinations) || destinations.length === 0) {
+			console.log('Invalid destinations input');
+			return [];
+		}
+		
+		if (!outboundDates || !Array.isArray(outboundDates) || outboundDates.length === 0) {
+			console.log('Invalid outboundDates input');
+			return [];
+		}
+		
 		const options = [];
 		const destinationMap = new Map();
 		
 		// Group by destination and check availability
 		outboundDates.forEach(date => {
-			const destinationId = String(date.destination_id);
-			if (!destinationMap.has(destinationId)) {
-				destinationMap.set(destinationId, {
-					id: destinationId,
-					hasDates: true
+			if (date && date.destination_id) {
+				const destinationId = String(date.destination_id);
+				console.log(`Processing date ${date.id}: destination_id=${date.destination_id}, stringified=${destinationId}`);
+				if (!destinationMap.has(destinationId)) {
+					destinationMap.set(destinationId, {
+						id: destinationId,
+						hasDates: true
+					});
+				}
+			}
+		});
+		
+		console.log('Destination map after processing dates:', destinationMap);
+		
+		// Build options for all destinations
+		destinations.forEach(destination => {
+			if (destination && destination.id && destination.name) {
+				const destinationId = String(destination.id);
+				const hasDates = destinationMap.has(destinationId);
+				console.log(`Destination ${destination.name} (${destination.id}): hasDates=${hasDates}`);
+				
+				options.push({
+					value: destinationId,
+					label: hasDates ? destination.name : `${destination.name} (Tidak Tersedia)`,
+					disabled: !hasDates
 				});
 			}
 		});
 		
-		// Build options for all destinations
-		destinations.forEach(destination => {
-			const destinationId = String(destination.id);
-			const hasDates = destinationMap.has(destinationId);
-			
-			options.push({
-				value: destinationId,
-				label: hasDates ? destination.name : `${destination.name} (Tidak Tersedia)`,
-				disabled: !hasDates
-			});
-		});
-		
+		console.log('Final options:', options);
+		console.log('====================================');
 		return options;
 	}
 
@@ -382,10 +415,38 @@
 		dynamicCategoryOptions = built.length > 0 ? built : fallbackCategoryOptions;
 	});
 
-	// Recompute dynamic destination options when outboundDates changes
+	// Function untuk menentukan destinasi yang tersedia
+	function getDestinationAvailability() {
+		if (!destinations || !outboundDates) return [];
+		
+		// Buat map destinasi yang punya tarikh
+		const availableDestinations = new Set();
+		outboundDates.forEach(date => {
+			if (date.destination_id) {
+				availableDestinations.add(String(date.destination_id));
+			}
+		});
+		
+		// Buat array destinasi dengan status ketersediaan
+		return destinations.map(destination => ({
+			id: destination.id,
+			name: destination.name,
+			isAvailable: availableDestinations.has(String(destination.id))
+		}));
+	}
+	
+	// Debug destinations data
 	$effect(() => {
-		const built = buildDestinationOptionsFromOutboundDates();
-		dynamicDestinationOptions = built.length > 0 ? built : fallbackDestinationOptions;
+		console.log('=== DESTINATIONS DATA DEBUG ===');
+		console.log('destinations:', destinations);
+		console.log('destinations length:', destinations?.length || 0);
+		console.log('outboundDates:', outboundDates);
+		console.log('outboundDates length:', outboundDates?.length || 0);
+		console.log('showDestinationSection:', showDestinationSection);
+		
+		const availability = getDestinationAvailability();
+		console.log('Destination availability:', availability);
+		console.log('================================');
 	});
 	
 	// State untuk filtered dates
@@ -420,19 +481,24 @@
 			
 			if (selectedPackage) {
 				const packageName = selectedPackage.name.toLowerCase();
+				console.log('Package name:', packageName);
+				
 				if (packageName.includes('pelancongan') || packageName.includes('outbound')) {
+					console.log('Setting showDestinationSection = true');
 					showDestinationSection = true;
 					showUmrahSeasonSection = false;
 					showUmrahCategorySection = false;
 					showAirlineSection = false;
 					showUmrahDateSection = false;
 				} else if (packageName.includes('umrah')) {
+					console.log('Setting showUmrahSeasonSection = true');
 					showDestinationSection = false;
 					showUmrahSeasonSection = true;
 					showUmrahCategorySection = false;
 					showAirlineSection = false;
 					showUmrahDateSection = false;
 				} else {
+					console.log('Other package type, hiding all sections');
 					// Paket lain (jika ada)
 					showDestinationSection = false;
 					showUmrahSeasonSection = false;
@@ -442,6 +508,7 @@
 				}
 			}
 		} else {
+			console.log('No package selected, hiding all sections');
 			showDestinationSection = false;
 			showDateSection = false;
 			showUmrahSeasonSection = false;
@@ -455,6 +522,11 @@
 			selectedAirline = '';
 			selectedTarikhUmrah = '';
 		}
+		
+		console.log('Final state:');
+		console.log('- showDestinationSection:', showDestinationSection);
+		console.log('- showUmrahSeasonSection:', showUmrahSeasonSection);
+		console.log('================================');
 	});
 
 	// Effect untuk mengontrol visibility kategori umrah berdasarkan pilihan musim
@@ -581,7 +653,9 @@
 		console.log('Package Types Length:', packageTypes.length);
 		console.log('Selected Package Type:', selectedPackageType);
 		console.log('Destinations:', destinations);
+		console.log('Destinations Length:', destinations?.length || 0);
 		console.log('Pelancongan Dates:', outboundDates);
+		console.log('Pelancongan Dates Length:', outboundDates?.length || 0);
 		console.log('Umrah Seasons:', umrahSeasons);
 		console.log('Umrah Categories:', umrahCategories);
 		console.log('Airlines:', airlines);
@@ -596,17 +670,21 @@
 		// console.log('Filtered Umrah Dates Length:', filteredUmrahDates.length);
 		
 		// Debug struktur data destinations
-		if (destinations.length > 0) {
+		if (destinations && destinations.length > 0) {
 			console.log('First Destination:', destinations[0]);
 			console.log('First Destination ID:', destinations[0].id);
 			console.log('First Destination ID Type:', typeof destinations[0].id);
+		} else {
+			console.log('No destinations data available');
 		}
 		
 		// Debug struktur data tarikh pelancongan
-		if (outboundDates.length > 0) {
+		if (outboundDates && outboundDates.length > 0) {
 			console.log('First Pelancongan Date:', outboundDates[0]);
 			console.log('First Pelancongan Date destination_id:', outboundDates[0].destination_id);
 			console.log('First Pelancongan Date destination_id Type:', typeof outboundDates[0].destination_id);
+		} else {
+			console.log('No outbound dates data available');
 		}
 		
 		// Debug struktur data umrah seasons
@@ -645,6 +723,15 @@
 		console.log('selectedTarikhUmrah:', selectedTarikhUmrah);
 		console.log('selectedBilangan:', selectedBilangan);
 		console.log('Condition for showing bilangan field:', (showDateSection && selectedTarikh) || (showUmrahDateSection && selectedTarikhUmrah));
+		console.log('================================');
+		
+		// Debug untuk destinasi
+		console.log('=== DESTINASI DEBUG ===');
+		console.log('showDestinationSection:', showDestinationSection);
+		console.log('dynamicDestinationOptions:', dynamicDestinationOptions);
+		console.log('dynamicDestinationOptions length:', dynamicDestinationOptions?.length || 0);
+		console.log('fallbackDestinationOptions:', fallbackDestinationOptions);
+		console.log('fallbackDestinationOptions length:', fallbackDestinationOptions?.length || 0);
 		console.log('================================');
 		
 		console.log('==================');
@@ -824,9 +911,7 @@
 			id: index + 2, // Mulai dari ID 2 karena peserta 1 sudah ada
 			nama: '',
 			nokp: '',
-			cwb: false,
-			infant: false,
-			cnb: false
+			kategori: '' // Single choice: 'cwb', 'infant', 'cnb', atau kosong
 		}));
 	}
 </script>
@@ -1404,7 +1489,10 @@
 						onblur={() => setTimeout(() => isKonsultanOpen = false, 200)}
 					>
 						<span class={selectedKonsultan ? 'text-gray-900' : 'text-gray-500'}>
-							{selectedKonsultan ? consultants.find(c => c.id === selectedKonsultan)?.name || 'Pilih Sales Consultant' : 'Pilih Sales Consultant'}
+							{selectedKonsultan ? (() => {
+								const consultant = consultants.find(c => c.id === selectedKonsultan);
+								return consultant ? `${consultant.sales_consultant_number} - ${consultant.name}` : 'Pilih Sales Consultant';
+							})() : 'Pilih Sales Consultant'}
 						</span>
 						<svg 
 							class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isKonsultanOpen ? 'rotate-180' : ''}`}
@@ -1419,7 +1507,7 @@
 					{#if isKonsultanOpen}
 						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 							<ul class="py-1">
-								{#each consultants as c}
+								{#each consultants.sort((a, b) => (a.sales_consultant_number || 0) - (b.sales_consultant_number || 0)) as c}
 									<li 
 										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedKonsultan === c.id ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
 										onclick={() => {
@@ -1427,7 +1515,7 @@
 											isKonsultanOpen = false;
 										}}
 									>
-										{c.name}
+										<span class="font-semibold text-gray-900 mr-2">{c.sales_consultant_number}</span> - {c.name}
 									</li>
 								{/each}
 							</ul>
@@ -1488,20 +1576,24 @@
 				<input type="hidden" name="pakej" value={selectedPackageType} required />
 			</div>
 
-			{#if showDestinationSection}
+			{#if showDestinationSection && destinations && destinations.length > 0}
 				<div class="flex flex-col gap-2">
 					<label class="text-[13px] font-semibold text-gray-700" for="destinasi">Destinasi<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${(dynamicDestinationOptions?.length || 0) === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+							class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] bg-white"
 							onclick={() => {
-								if ((dynamicDestinationOptions?.length || 0) > 0) {
-									isDestinasiOpen = !isDestinasiOpen;
-									if (!isDestinasiOpen) {
-										searchTermDestinations = '';
-										filteredDestinations = [];
-										clearTimeout(searchTimeoutDestinations);
-									}
+								console.log('=== DESTINATION DROPDOWN CLICKED ===');
+								console.log('destinations:', destinations);
+								console.log('destinations length:', destinations?.length || 0);
+								
+								// Selalu buka dropdown
+								isDestinasiOpen = !isDestinasiOpen;
+								
+								if (!isDestinasiOpen) {
+									searchTermDestinations = '';
+									filteredDestinations = [];
+									clearTimeout(searchTimeoutDestinations);
 								}
 							}}
 							onblur={() => setTimeout(() => {
@@ -1513,8 +1605,11 @@
 						>
 							<span class={selectedDestinasi ? 'text-gray-900' : 'text-gray-500'}>
 								{selectedDestinasi ? (() => {
-									const destinationOption = (dynamicDestinationOptions.length > 0 ? dynamicDestinationOptions : fallbackDestinationOptions).find(opt => opt.value === selectedDestinasi);
-									return destinationOption ? destinationOption.label : 'Pilih Destinasi';
+									const destination = getDestinationAvailability().find(d => String(d.id) === selectedDestinasi);
+									if (destination) {
+										return destination.isAvailable ? destination.name : `${destination.name} (Tidak Tersedia)`;
+									}
+									return 'Pilih Destinasi';
 								})() : 'Pilih Destinasi'}
 							</span>
 							<svg 
@@ -1527,7 +1622,7 @@
 							</svg>
 						</div>
 						
-						{#if isDestinasiOpen && (dynamicDestinationOptions?.length || 0) > 0}
+						{#if isDestinasiOpen}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-50 max-h-96 overflow-y-auto">
 								<!-- Search input untuk destinasi di atas dropdown -->
 								<div class="sticky top-0 bg-white p-4 border-b border-gray-200 rounded-t-[10px]">
@@ -1544,8 +1639,8 @@
 														filteredDestinations = [];
 													} else {
 														// Filter destinations berdasarkan search term secara real-time
-														filteredDestinations = (dynamicDestinationOptions.length > 0 ? dynamicDestinationOptions : fallbackDestinationOptions).filter(d => 
-															d.label.toLowerCase().includes(searchTermDestinations)
+														filteredDestinations = getDestinationAvailability().filter(d => 
+															d.name.toLowerCase().includes(searchTermDestinations)
 														);
 													}
 												}, 300);
@@ -1557,18 +1652,21 @@
 									</div>
 								</div>
 								<ul class="py-1">
-									{#each (filteredDestinations.length > 0 ? filteredDestinations : (filteredDestinations.length === 0 && searchTermDestinations !== '' ? [] : (dynamicDestinationOptions.length > 0 ? dynamicDestinationOptions : fallbackDestinationOptions))) as d}
+									{#each (filteredDestinations.length > 0 ? filteredDestinations : (filteredDestinations.length === 0 && searchTermDestinations !== '' ? [] : getDestinationAvailability())) as d}
 										<li 
-											class={`px-3 py-2 text-[14px] ${d.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedDestinasi === d.value ? 'bg-purple-100 text-purple-700' : ''}`}
+											class="px-3 py-2 text-[14px] {d.isAvailable ? 'cursor-pointer hover:bg-purple-50 text-gray-700' : 'text-gray-400 cursor-not-allowed'} {selectedDestinasi === String(d.id) ? 'bg-purple-100 text-purple-700' : ''}"
 											onclick={() => {
-												if (!d.disabled) {
-													selectedDestinasi = d.value;
+												if (d.isAvailable) {
+													console.log('Destination selected:', d.name, d.id);
+													selectedDestinasi = String(d.id);
 													selectedTarikh = '';
 													isDestinasiOpen = false;
+												} else {
+													console.log('Cannot select unavailable destination:', d.name);
 												}
 											}}
 										>
-											{d.label}
+											{d.name}{!d.isAvailable ? ' (Tidak Tersedia)' : ''}
 										</li>
 									{/each}
 									{#if filteredDestinations.length === 0 && searchTermDestinations !== ''}
@@ -1576,6 +1674,12 @@
 											Tidak ada destinasi yang ditemukan
 										</li>
 									{/if}
+									{#if (!destinations || destinations.length === 0) && !searchTermDestinations}
+										<li class="px-3 py-2 text-[14px] text-gray-500 text-center">
+											Tidak ada data destinasi tersedia
+										</li>
+									{/if}
+
 								</ul>
 							</div>
 						{/if}
@@ -1918,9 +2022,9 @@
 						</div>
 						
 						{#if isBilanganOpen}
-							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
+							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-48 overflow-y-auto">
 								<ul class="py-1">
-									{#each Array.from({length: 21}, (_, i) => i) as num}
+									{#each Array.from({length: 10}, (_, i) => i) as num}
 										<li 
 											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedBilangan === num ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
 											onclick={() => {
@@ -2023,14 +2127,13 @@
 								/>
 							</div>
 							<div class="flex flex-col gap-2">
-								<label class="text-[13px] font-semibold text-gray-700" for="peserta_nokp_{peserta.id}">No K/P Peserta {peserta.id}<span class="text-red-500 ml-1">*</span></label>
+								<label class="text-[13px] font-semibold text-gray-700" for="peserta_nokp_{peserta.id}">No K/P Peserta {peserta.id}</label>
 								<input 
 									id="peserta_nokp_{peserta.id}" 
 									name="peserta_nokp_{peserta.id}" 
 									type="text" 
 									placeholder="Contoh: 970109015442" 
 									maxlength="12"
-									required 
 									bind:value={peserta.nokp}
 									oninput={handleIdInput}
 									onkeypress={handleIdKeyPress}
@@ -2041,16 +2144,16 @@
 						<div class="col-span-full mt-3 sm:mt-4">
 							<p class="text-[13px] font-semibold text-gray-700 mb-2">Kategori Peserta:</p>
 							<div class="flex flex-wrap gap-3 sm:gap-4">
-								<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
-									<input type="checkbox" name="peserta_cwb_{peserta.id}" bind:checked={peserta.cwb} class={checkboxInputClass} />
+								<label class={checkboxLabelClass}>
+									<input type="radio" name="peserta_kategori_{peserta.id}" value="cwb" bind:group={peserta.kategori} class={checkboxInputClass} />
 									<span>CWB</span>
 								</label>
-								<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
-									<input type="checkbox" name="peserta_infant_{peserta.id}" bind:checked={peserta.infant} class={checkboxInputClass} />
+								<label class={checkboxLabelClass}>
+									<input type="radio" name="peserta_kategori_{peserta.id}" value="infant" bind:group={peserta.kategori} class={checkboxInputClass} />
 									<span>Infant</span>
 								</label>
-								<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
-									<input type="checkbox" name="peserta_cnb_{peserta.id}" bind:checked={peserta.cnb} class={checkboxInputClass} />
+								<label class={checkboxLabelClass}>
+									<input type="radio" name="peserta_kategori_{peserta.id}" value="cnb" bind:group={peserta.kategori} class={checkboxInputClass} />
 									<span>CNB</span>
 								</label>
 							</div>
