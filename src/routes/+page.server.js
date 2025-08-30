@@ -31,6 +31,132 @@ function parseMalaysianNRIC(nric) {
 	return { birthDate, age, gender };
 }
 
+// Fungsi untuk mengirim data ke N8n webhook
+async function sendToN8n(formData, bookingId, pesertaData) {
+	try {
+		// Ambil data dari formData
+		const nama = formData.get('nama');
+		const alamat = formData.get('alamat');
+		const bandar = formData.get('bandar');
+		const negeri = formData.get('negeri');
+		const uuid = bookingId; // Gunakan booking ID sebagai UUID
+		const date = new Date().toISOString().split('T')[0]; // Tanggal hari ini
+		
+		// Hitung total harga dari data yang tersimpan
+		let total = 0;
+		
+		// Ambil data pakej dan tarikh untuk menghitung total
+		const pakej = formData.get('pakej');
+		const tarikh_berlepas = formData.get('tarikh_berlepas');
+		const tarikh_umrah = formData.get('tarikh_umrah');
+		const pilih_bilik = formData.get('pilih_bilik');
+		const bilangan = parseInt(formData.get('bilangan')) || 0;
+		
+		if (tarikh_berlepas) {
+			// Untuk pakej pelancongan
+			const { data: outboundDateData } = await supabase
+				.from('outbound_dates')
+				.select('price')
+				.eq('id', tarikh_berlepas)
+				.single();
+			
+			if (outboundDateData && outboundDateData.price) {
+				const basePrice = parseFloat(outboundDateData.price);
+				if (!isNaN(basePrice)) {
+					const totalParticipants = bilangan + 1; // applicant + additional participants
+					total = basePrice * totalParticipants;
+				}
+			}
+		} else if (tarikh_umrah && pilih_bilik) {
+			// Untuk pakej umrah
+			const { data: umrahDateData } = await supabase
+				.from('umrah_dates')
+				.select('double, triple, quadruple, quintuple')
+				.eq('id', tarikh_umrah)
+				.single();
+			
+			if (umrahDateData) {
+				let basePrice = 0;
+				switch (pilih_bilik) {
+					case 'double':
+						basePrice = umrahDateData.double || 0;
+						break;
+					case 'triple':
+						basePrice = umrahDateData.triple || 0;
+						break;
+					case 'quad':
+						basePrice = umrahDateData.quadruple || 0;
+						break;
+					case 'quintuple':
+						basePrice = umrahDateData.quintuple || 0;
+						break;
+				}
+				
+				if (basePrice > 0) {
+					// Hitung total berdasarkan peserta yang dikenakan bayaran
+					let chargedParticipants = 1; // Applicant selalu dikenakan bayaran
+					
+					// Proses peserta tambahan
+					for (let i = 1; i <= bilangan; i++) {
+						const kategori = formData.get(`peserta_kategori_${i}`);
+						if (kategori === 'cwb' || kategori === '') {
+							// Child with bed atau regular participant - dikenakan bayaran
+							chargedParticipants++;
+						}
+						// CNB dan Infant tidak dikenakan bayaran
+					}
+					
+					total = basePrice * chargedParticipants;
+				}
+			}
+		}
+
+		// Siapkan data sesuai format yang diminta
+		const n8nData = {
+			nama: nama || '',
+			alamat: alamat || '',
+			bandar: bandar || '',
+			negeri: negeri || '',
+			uuid: uuid || '',
+			date: date,
+			total: total.toString()
+		};
+
+		// Log data yang akan dikirim ke N8n
+		console.log('=== N8N WEBHOOK DATA ===');
+		console.log('Data to be sent:', JSON.stringify(n8nData, null, 2));
+		console.log('========================');
+
+		// Kirim data ke N8n webhook dengan URL yang benar
+		const response = await fetch('https://n8n-ezaj8apw.runner.web.id/webhook/invoice-booking', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(n8nData)
+		});
+
+		if (!response.ok) {
+			console.error('Error sending data to N8n:', response.status, response.statusText);
+			throw new Error(`N8n webhook failed: ${response.status} ${response.statusText}`);
+		}
+
+		const responseData = await response.text();
+		console.log('N8n webhook response:', responseData);
+		console.log('Successfully sent data to N8n webhook');
+
+	} catch (error) {
+		console.error('Error sending data to N8n webhook:', error);
+		console.error('Error details:', {
+			message: error.message,
+			stack: error.stack,
+			bookingId: bookingId
+		});
+		// Jangan throw error karena ini tidak boleh mengganggu proses booking utama
+		// Hanya log error untuk debugging
+	}
+}
+
 export async function load() {
 	try {
 		const today = new Date().toISOString().slice(0, 10);
@@ -48,7 +174,6 @@ export async function load() {
 		const { data: packageTypes, error: packageTypesError } = await supabase
 			.from('package_types')
 			.select('id, name, description')
-			.eq('is_active', true)
 			.order('name');
 
 		if (packageTypesError) {
@@ -79,7 +204,6 @@ export async function load() {
 		const { data: umrahSeasons, error: umrahSeasonsError } = await supabase
 			.from('umrah_seasons')
 			.select('id, name')
-			.eq('is_active', true)
 			.order('name');
 
 		if (umrahSeasonsError) {
@@ -90,7 +214,6 @@ export async function load() {
 		const { data: umrahCategories, error: umrahCategoriesError } = await supabase
 			.from('umrah_dates')
 			.select('umrah_category_id, umrah_categories!inner(id, name)')
-			.eq('is_active', true)
 			.gte('start_date', today);
 
 		if (umrahCategoriesError) {
@@ -119,7 +242,6 @@ export async function load() {
 		const { data: airlines, error: airlinesError } = await supabase
 			.from('umrah_dates')
 			.select('airline_id, airlines!inner(id, name)')
-			.eq('is_active', true)
 			.gte('start_date', today);
 
 		if (airlinesError) {
@@ -147,7 +269,11 @@ export async function load() {
 		// Fetch umrah dates with pricing (filtered by current date)
 		const { data: umrahDates, error: umrahDatesError } = await supabase
 			.from('umrah_dates')
-			.select('*')
+			.select(`
+				*,
+				umrah_seasons!inner(id, name),
+				umrah_categories!inner(id, name)
+			`)
 			.gte('start_date', today)
 			.order('start_date');
 
@@ -235,16 +361,18 @@ export const actions = {
 				package_id: formData.get('pakej'),
 				bilangan: parseInt(formData.get('bilangan')) || 0,
 				perlu_partner_bilik: formData.get('perlu_partner_bilik') === 'on',
-				catatan: formData.get('catatan')
+				jenis_bilik: null,
+				total_price: null
 			};
 
-			// Pilihan bilik untuk Umrah (tanpa ubah skema, tambah ke catatan)
+			// Pilihan bilik untuk Umrah (tanpa ubah skema, tambah ke jenis_bilik)
 			const pilihBilik = formData.get('pilih_bilik');
 			const ROOM_LABELS = {
-				single: 'Bilik Single',
-				double: 'Bilik Double/Twin',
-				triple: 'Bilik Triple',
-				quad: 'Bilik Quad'
+				single: 'Single',
+				double: 'Double',
+				triple: 'Triple',
+				quad: 'Quad',
+				quintuple: 'Quintuple'
 			};
 			if (maklumat.umrah_date_id) {
 				if (!pilihBilik) {
@@ -254,10 +382,10 @@ export const actions = {
 					});
 				}
 				const bilikLabel = ROOM_LABELS[String(pilihBilik)] || String(pilihBilik);
-				const existingCatatan = String(maklumat.catatan || '').trim();
-				maklumat.catatan = existingCatatan
-					? `${existingCatatan} | Jenis Bilik: ${bilikLabel}`
-					: `Jenis Bilik: ${bilikLabel}`;
+				const existingJenisBilik = String(maklumat.jenis_bilik || '').trim();
+				maklumat.jenis_bilik = existingJenisBilik
+					? `${existingJenisBilik} | ${bilikLabel}`
+					: bilikLabel;
 			}
 
 			// Normalise and derive from applicant NRIC
@@ -409,6 +537,142 @@ export const actions = {
 				console.log(`Booking scenario: ${maklumat.bilangan + 1} total participants (1 applicant + ${maklumat.bilangan} additional)`);
 			}
 
+			// Calculate total price for outbound packages
+			if (maklumat.outbound_date_id) {
+				try {
+					// Get price from outbound_dates table
+					const { data: outboundDateData, error: outboundDateError } = await supabase
+						.from('outbound_dates')
+						.select('price')
+						.eq('id', maklumat.outbound_date_id)
+						.single();
+
+					if (outboundDateError) {
+						console.error('Error fetching outbound date price:', outboundDateError);
+						maklumat.total_price = null;
+					} else if (outboundDateData && outboundDateData.price) {
+						// Parse price and calculate total
+						const basePrice = parseFloat(outboundDateData.price);
+						if (!isNaN(basePrice)) {
+							// For outbound packages, all participants are charged (including CNB and Infant)
+							// because they need transportation seats
+							const totalParticipants = maklumat.bilangan + 1; // applicant + additional participants
+							maklumat.total_price = basePrice * totalParticipants;
+							console.log(`Outbound price calculation: RM ${basePrice} × ${totalParticipants} participants = RM ${maklumat.total_price}`);
+						} else {
+							console.error('Invalid price format in outbound_dates:', outboundDateData.price);
+							maklumat.total_price = null;
+						}
+					} else {
+						console.log('No price found for outbound date, setting total_price to null');
+						maklumat.total_price = null;
+					}
+				} catch (error) {
+					console.error('Error calculating total price:', error);
+					maklumat.total_price = null;
+				}
+			}
+
+			// Calculate total price for Umrah packages
+			if (maklumat.umrah_date_id) {
+				try {
+					// Get price from umrah_dates table based on selected room type
+					const pilihBilik = formData.get('pilih_bilik');
+					
+					if (!pilihBilik) {
+						console.error('No room type selected for Umrah package');
+						maklumat.total_price = null;
+					} else {
+											const { data: umrahDateData, error: umrahDateError } = await supabase
+						.from('umrah_dates')
+						.select('double, triple, quadruple, quintuple, low_deck_interior, low_deck_seaview, low_deck_balcony, high_deck_interior, high_deck_seaview, high_deck_balcony')
+						.eq('id', maklumat.umrah_date_id)
+						.single();
+
+						if (umrahDateError) {
+							console.error('Error fetching umrah date price:', umrahDateError);
+							maklumat.total_price = null;
+						} else if (umrahDateData) {
+							// Get price based on selected room type
+							let basePrice = null;
+							switch (pilihBilik) {
+								// Regular room types
+								case 'double':
+									basePrice = umrahDateData.double;
+									break;
+								case 'triple':
+									basePrice = umrahDateData.triple;
+									break;
+								case 'quad':
+									basePrice = umrahDateData.quadruple;
+									break;
+								case 'quintuple':
+									basePrice = umrahDateData.quintuple;
+									break;
+								// Cruise cabin types
+								case 'low_deck_interior':
+									basePrice = umrahDateData.low_deck_interior;
+									break;
+								case 'low_deck_seaview':
+									basePrice = umrahDateData.low_deck_seaview;
+									break;
+								case 'low_deck_balcony':
+									basePrice = umrahDateData.low_deck_balcony;
+									break;
+								case 'high_deck_interior':
+									basePrice = umrahDateData.high_deck_interior;
+									break;
+								case 'high_deck_seaview':
+									basePrice = umrahDateData.high_deck_seaview;
+									break;
+								case 'high_deck_balcony':
+									basePrice = umrahDateData.high_deck_balcony;
+									break;
+								default:
+									console.error('Invalid room type:', pilihBilik);
+									basePrice = null;
+							}
+
+							if (basePrice && basePrice > 0) {
+								// Calculate total price based on participants and their status
+								let totalPrice = basePrice; // Start with applicant price
+								let chargedParticipants = 1; // Start with applicant (always charged)
+								
+								// Process additional participants with their radio button status
+								for (let i = 1; i <= maklumat.bilangan; i++) {
+									const kategori = formData.get(`peserta_kategori_${i}`);
+									
+									if (kategori === 'cnb' || kategori === 'infant') {
+										// Child no bed or Infant - no charge (but still counted as participant)
+										// Do nothing, no charge
+									} else if (kategori === 'cwb') {
+										// Child with bed - charged as full price
+										totalPrice += basePrice;
+										chargedParticipants++;
+									} else {
+										// Regular participant (no kategori selected) - charged as full price
+										totalPrice += basePrice;
+										chargedParticipants++;
+									}
+								}
+								
+								maklumat.total_price = totalPrice;
+								console.log(`Umrah price calculation: Base price RM ${basePrice} × ${chargedParticipants} charged participants = RM ${totalPrice}`);
+							} else {
+								console.error('Invalid or zero price for selected room type:', pilihBilik, basePrice);
+								maklumat.total_price = null;
+							}
+						} else {
+							console.log('No price data found for umrah date, setting total_price to null');
+							maklumat.total_price = null;
+						}
+					}
+				} catch (error) {
+					console.error('Error calculating Umrah total price:', error);
+					maklumat.total_price = null;
+				}
+			}
+
 			// Validate UUID fields if provided
 			const uuidFields = ['branch_id', 'destination_id', 'outbound_date_id', 'consultant_id', 'package_id', 'umrah_season_id', 'umrah_category_id', 'airline_id', 'umrah_date_id'];
 			for (const field of uuidFields) {
@@ -461,28 +725,12 @@ export const actions = {
 					pesertaMap.set(id, existing);
 					continue;
 				}
-				// Process checkbox data for CWB, Infant, and CNB
-				match = /^peserta_cwb_(\d+)$/.exec(String(key));
+				// Process radio button data for kategori (CWB, Infant, CNB)
+				match = /^peserta_kategori_(\d+)$/.exec(String(key));
 				if (match) {
 					const id = match[1];
 					const existing = pesertaMap.get(id) || {};
-					existing.cwb = value === 'on';
-					pesertaMap.set(id, existing);
-					continue;
-				}
-				match = /^peserta_infant_(\d+)$/.exec(String(key));
-				if (match) {
-					const id = match[1];
-					const existing = pesertaMap.get(id) || {};
-					existing.infant = value === 'on';
-					pesertaMap.set(id, existing);
-					continue;
-				}
-				match = /^peserta_cnb_(\d+)$/.exec(String(key));
-				if (match) {
-					const id = match[1];
-					const existing = pesertaMap.get(id) || {};
-					existing.cnb = value === 'on';
+					existing.kategori = String(value || '');
 					pesertaMap.set(id, existing);
 				}
 			}
@@ -581,6 +829,14 @@ export const actions = {
 
 			console.log(`Successfully saved booking with ID: ${bookingId}`);
 			console.log(`Saved ${pesertaData.length} member records`);
+
+			// Kirim data ke N8n webhook setelah data berhasil disimpan
+			try {
+				await sendToN8n(formData, bookingId, pesertaData);
+			} catch (n8nError) {
+				console.error('N8n webhook error (non-blocking):', n8nError);
+				// Error N8n tidak boleh mengganggu response sukses booking
+			}
 
 			return {
 				success: true,

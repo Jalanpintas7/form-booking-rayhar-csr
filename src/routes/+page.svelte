@@ -14,6 +14,8 @@
 	let showSuccess = $state(false);
 	let showError = $state(false);
 	let errorMessage = $state('');
+	let validationErrors = $state([]);
+	let isSubmitting = $state(false);
 	let redirectTimer = $state(null);
 	let countdownInterval = $state(null);
 	let countdownSeconds = $state(5);
@@ -341,42 +343,87 @@
 		if (!record || typeof record !== 'object') return [];
 		const options = [];
 		
-		// Build options from actual price columns in umrah_dates
-		// Double - selalu tampil, disabled jika null/0
-		options.push({ 
-			value: 'double', 
-			label: `Bilik Double/Twin ${record.double && record.double > 0 ? `(RM ${formatPrice(record.double)})` : '(Tidak Tersedia)'}`,
-			disabled: !record.double || record.double <= 0
-		});
+		// Check category to determine room type options
+		const categoryName = record.umrah_categories?.name;
 		
-		// Triple - selalu tampil, disabled jika null/0
-		options.push({ 
-			value: 'triple', 
-			label: `Bilik Triple ${record.triple && record.triple > 0 ? `(RM ${formatPrice(record.triple)})` : '(Tidak Tersedia)'}`,
-			disabled: !record.triple || record.triple <= 0
-		});
-		
-		// Quadruple - selalu tampil, disabled jika null/0
-		options.push({ 
-			value: 'quad', 
-			label: `Bilik Quad ${record.quadruple && record.quadruple > 0 ? `(RM ${formatPrice(record.quadruple)})` : '(Tidak Tersedia)'}`,
-			disabled: !record.quadruple || record.quadruple <= 0
-		});
-		
-		// Quintuple - selalu tampil, disabled jika null/0
-		options.push({ 
-			value: 'quintuple', 
-			label: `Bilik Quintuple ${record.quintuple && record.quintuple > 0 ? `(RM ${formatPrice(record.quintuple)})` : '(Tidak Tersedia)'}`,
-			disabled: !record.quintuple || record.quintuple <= 0
-		});
-		
-		// Single - selalu tampil, disabled jika null/0
-		if (record.single) {
+		if (categoryName === 'PELAYARAN' || categoryName === 'UMRAH + PELAYARAN') {
+			// Options for cruise packages (PELAYARAN and UMRAH + PELAYARAN)
+			// LOW DECK
 			options.push({ 
-				value: 'single', 
-				label: `Bilik Single ${record.single > 0 ? `(RM ${formatPrice(record.single)})` : '(Tidak Tersedia)'}`,
-				disabled: record.single <= 0
+				value: 'low_deck_interior', 
+				label: `LOW DECK + INTERIOR ${record.low_deck_interior && record.low_deck_interior > 0 ? `(RM ${formatPrice(record.low_deck_interior)})` : '(Tidak Tersedia)'}`,
+				disabled: !record.low_deck_interior || record.low_deck_interior <= 0
 			});
+			
+			options.push({ 
+				value: 'low_deck_seaview', 
+				label: `LOW DECK + SEAVIEW ${record.low_deck_seaview && record.low_deck_seaview > 0 ? `(RM ${formatPrice(record.low_deck_seaview)})` : '(Tidak Tersedia)'}`,
+				disabled: !record.low_deck_seaview || record.low_deck_seaview <= 0
+			});
+			
+			options.push({ 
+				value: 'low_deck_balcony', 
+				label: `LOW DECK + BALCONY ${record.low_deck_balcony && record.low_deck_balcony > 0 ? `(RM ${formatPrice(record.low_deck_balcony)})` : '(Tidak Tersedia)'}`,
+				disabled: !record.low_deck_balcony || record.low_deck_balcony <= 0
+			});
+			
+			// HIGH DECK
+			options.push({ 
+				value: 'high_deck_interior', 
+				label: `HIGH DECK + INTERIOR ${record.high_deck_interior && record.high_deck_interior > 0 ? `(RM ${formatPrice(record.high_deck_interior)})` : '(Tidak Tersedia)'}`,
+				disabled: !record.high_deck_interior || record.high_deck_interior <= 0
+			});
+			
+			options.push({ 
+				value: 'high_deck_seaview', 
+				label: `HIGH DECK + SEAVIEW ${record.high_deck_seaview && record.high_deck_seaview > 0 ? `(RM ${formatPrice(record.high_deck_seaview)})` : '(Tidak Tersedia)'}`,
+				disabled: !record.high_deck_seaview || record.high_deck_seaview <= 0
+			});
+			
+			options.push({ 
+				value: 'high_deck_balcony', 
+				label: `HIGH DECK + BALCONY ${record.high_deck_balcony && record.high_deck_balcony > 0 ? `(RM ${formatPrice(record.high_deck_balcony)})` : '(Tidak Tersedia)'}`,
+				disabled: !record.high_deck_balcony || record.high_deck_balcony <= 0
+			});
+			
+		} else {
+			// Options for regular umrah packages (UMRAH category or any other)
+			// Double - selalu tampil, disabled jika null/0
+			options.push({ 
+				value: 'double', 
+				label: `Bilik Double/Twin ${record.double && record.double > 0 ? `(RM ${formatPrice(record.double)})` : '(Tidak Tersedia)'}`,
+				disabled: !record.double || record.double <= 0
+			});
+			
+			// Triple - selalu tampil, disabled jika null/0
+			options.push({ 
+				value: 'triple', 
+				label: `Bilik Triple ${record.triple && record.triple > 0 ? `(RM ${formatPrice(record.triple)})` : '(Tidak Tersedia)'}`,
+				disabled: !record.triple || record.triple <= 0
+			});
+			
+			// Quadruple - selalu tampil, disabled jika null/0
+			options.push({ 
+				value: 'quad', 
+				label: `Bilik Quad ${record.quadruple && record.quadruple > 0 ? `(RM ${formatPrice(record.quadruple)})` : '(Tidak Tersedia)'}`,
+				disabled: !record.quadruple || record.quadruple <= 0
+			});
+			
+			// Quintuple - selalu tampil, disabled jika null/0
+			options.push({ 
+				value: 'quintuple', 
+				label: `Bilik Quintuple ${record.quintuple && record.quintuple > 0 ? `(RM ${formatPrice(record.quintuple)})` : '(Tidak Tersedia)'}`,
+				disabled: !record.quintuple || record.quintuple <= 0
+			});
+			
+			// Single - selalu tampil, disabled jika null/0
+			if (record.single) {
+				options.push({ 
+					value: 'single', 
+					label: `Bilik Single ${record.single > 0 ? `(RM ${formatPrice(record.single)})` : '(Tidak Tersedia)'}`,
+					disabled: record.single <= 0
+				});
+			}
 		}
 		
 		return options;
@@ -903,6 +950,209 @@
 		}
 	}
 
+	// Function untuk validasi form sebelum submit
+	function validateForm() {
+		const errors = [];
+		
+		// Validasi field wajib dasar
+		if (!selectedGelaran) {
+			errors.push('Sila pilih gelaran anda');
+		}
+		if (!mainFormData.nama || mainFormData.nama.trim() === '') {
+			errors.push('Sila masukkan nama penuh anda');
+		}
+		if (!mainFormData.nokp || mainFormData.nokp.trim() === '') {
+			errors.push('Sila masukkan nombor K/P anda');
+		}
+		
+		// Validasi field yang diperlukan untuk form
+		const telefon = document.querySelector('input[name="telefon"]')?.value;
+		if (!telefon || telefon.trim() === '') {
+			errors.push('Sila masukkan nombor telefon anda');
+		}
+		
+		const email = document.querySelector('input[name="email"]')?.value;
+		if (!email || email.trim() === '') {
+			errors.push('Sila masukkan alamat email anda');
+		}
+		
+		const alamat = document.querySelector('input[name="alamat"]')?.value;
+		if (!alamat || alamat.trim() === '') {
+			errors.push('Sila masukkan alamat rumah anda');
+		}
+		
+		// Validasi poskod
+		if (!poskodValue || poskodValue.length !== 5) {
+			errors.push('Sila masukkan poskod 5 digit yang lengkap');
+		}
+		if (poskodError) {
+			errors.push('Sila pastikan poskod yang dimasukkan adalah betul');
+		}
+		if (!selectedNegeri || !selectedBandar) {
+			errors.push('Sila pastikan negeri dan bandar telah dipilih');
+		}
+		
+		// Validasi cawangan
+		if (!selectedCawangan) {
+			errors.push('Sila pilih cawangan anda');
+		}
+		
+		// Validasi sales consultant
+		if (!selectedKonsultan) {
+			errors.push('Sila pilih sales consultant anda');
+		}
+		
+		// Validasi pakej
+		if (!selectedPackageType) {
+			errors.push('Sila pilih jenis pakej anda');
+		}
+		
+		// Validasi berdasarkan jenis pakej
+		if (showDestinationSection) {
+			// Validasi untuk pakej pelancongan
+			if (!selectedDestinasi) {
+				errors.push('Sila pilih destinasi pelancongan anda');
+			}
+			if (!selectedTarikh) {
+				errors.push('Sila pilih tarikh pelancongan anda');
+			}
+		} else if (showUmrahSeasonSection) {
+			// Validasi untuk pakej umrah
+			if (!selectedMusimUmrah) {
+				errors.push('Sila pilih musim umrah anda');
+			}
+			if (!selectedKategoriUmrah) {
+				errors.push('Sila pilih kategori umrah anda');
+			}
+			if (!selectedAirline) {
+				errors.push('Sila pilih penerbangan anda');
+			}
+			if (!selectedTarikhUmrah) {
+				errors.push('Sila pilih tarikh umrah anda');
+			}
+			if (!selectedRoomType) {
+				errors.push('Sila pilih jenis bilik anda');
+			}
+		}
+		
+		// Validasi bilangan peserta
+		if (selectedTarikh || selectedTarikhUmrah) {
+			if (selectedBilangan === '') {
+				errors.push('Sila pilih bilangan peserta tambahan');
+			}
+		}
+		
+		// Validasi data peserta tambahan
+		if (selectedBilangan && pesertaData.length > 0) {
+			for (let i = 0; i < pesertaData.length; i++) {
+				const peserta = pesertaData[i];
+				if (!peserta.nama || peserta.nama.trim() === '') {
+					errors.push(`Sila masukkan nama Peserta ${peserta.id}`);
+				}
+			}
+		}
+		
+		return errors;
+	}
+
+	// Function untuk menampilkan error validasi
+	function showValidationErrors(errors) {
+		validationErrors = errors;
+		showError = true;
+		errorMessage = 'Sila lengkapkan maklumat berikut:';
+		
+		// Scroll ke atas form untuk menampilkan error
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+		
+		// Highlight field yang error
+		highlightErrorFields();
+	}
+
+	// Function untuk clear error
+	function clearErrors() {
+		validationErrors = [];
+		showError = false;
+		errorMessage = '';
+	}
+
+	// Function untuk highlight field yang error
+	function highlightErrorField(fieldName) {
+		const field = document.querySelector(`[name="${fieldName}"]`);
+		if (field) {
+			field.classList.add('border-red-500');
+			field.classList.add('focus:border-red-500');
+			field.classList.add('focus:[box-shadow:0_0_0_4px_rgba(239,68,68,0.18)]');
+			
+			// Remove error styling after 3 seconds
+			setTimeout(() => {
+				field.classList.remove('border-red-500');
+				field.classList.remove('focus:border-red-500');
+				field.classList.remove('focus:[box-shadow:0_0_0_4px_rgba(239,68,68,0.18)]');
+			}, 3000);
+		}
+	}
+
+	// Function untuk highlight semua field yang error
+	function highlightErrorFields() {
+		// Highlight field berdasarkan error yang ditemukan
+		if (validationErrors.some(e => e.includes('gelaran'))) {
+			// Highlight gelaran dropdown
+			const gelaranContainer = document.querySelector('[onclick*="isGelaranOpen"]');
+			if (gelaranContainer) {
+				gelaranContainer.classList.add('border-red-500');
+				setTimeout(() => gelaranContainer.classList.remove('border-red-500'), 3000);
+			}
+		}
+		
+		if (validationErrors.some(e => e.includes('nama'))) {
+			highlightErrorField('nama');
+		}
+		
+		if (validationErrors.some(e => e.includes('nokp'))) {
+			highlightErrorField('nokp');
+		}
+		
+		if (validationErrors.some(e => e.includes('telefon'))) {
+			highlightErrorField('telefon');
+		}
+		
+		if (validationErrors.some(e => e.includes('email'))) {
+			highlightErrorField('email');
+		}
+		
+		if (validationErrors.some(e => e.includes('alamat'))) {
+			highlightErrorField('alamat');
+		}
+		
+		if (validationErrors.some(e => e.includes('poskod'))) {
+			highlightErrorField('poskod');
+		}
+		
+		if (validationErrors.some(e => e.includes('cawangan'))) {
+			const cawanganContainer = document.querySelector('[onclick*="isCawanganOpen"]');
+			if (cawanganContainer) {
+				cawanganContainer.classList.add('border-red-500');
+				setTimeout(() => cawanganContainer.classList.remove('border-red-500'), 3000);
+			}
+		}
+		
+		if (validationErrors.some(e => e.includes('sales consultant'))) {
+			const konsultanContainer = document.querySelector('[onclick*="isKonsultanOpen"]');
+			if (konsultanContainer) {
+				konsultanContainer.classList.add('border-red-500');
+				setTimeout(() => konsultanContainer.classList.remove('border-red-500'), 3000);
+			}
+		}
+		
+		if (validationErrors.some(e => e.includes('pakej'))) {
+			const pakejContainer = document.querySelector('[onclick*="isPakejOpen"]');
+			if (pakejContainer) {
+				pakejContainer.classList.add('border-red-500');
+				setTimeout(() => pakejContainer.classList.remove('border-red-500'), 3000);
+			}
+		}
+	}
+
 	// Function untuk mengupdate data peserta berdasarkan jumlah
 	function updatePesertaData(bilangan) {
 		const jumlah = parseInt(bilangan) || 0;
@@ -936,6 +1186,7 @@
 				onclick={() => {
 					cleanupTimers();
 					showSuccess = false;
+					isSubmitting = false;
 					// Reset semua form data
 					selectedGelaran = '';
 					mainFormData = { nama: '', nokp: '', gelaran: '' };
@@ -1012,16 +1263,33 @@
 		<div class="bg-white border border-[#e5e7eb] rounded-[14px] shadow-[0_10px_24px_rgba(17,24,39,0.06)] p-4 sm:p-7 max-w-[720px] mx-auto mb-6 sm:mb-10">
 			<form class="grid grid-cols-2 gap-y-3 gap-x-4 sm:gap-y-4 sm:gap-x-5 max-[720px]:grid-cols-1" method="POST" use:enhance={() => {
 				return async ({ result, cancel }) => {
+					// Clear previous errors
+					clearErrors();
+					
+					// Set loading state
+					isSubmitting = true;
+					
+					// Validasi form sebelum submit
+					const errors = validateForm();
+					if (errors.length > 0) {
+						showValidationErrors(errors);
+						isSubmitting = false;
+						cancel();
+						return;
+					}
+					
 					// Prevent form submission if there's a postcode error or incomplete postcode
 					if (poskodError || poskodValue.length !== 5) {
 						if (poskodValue.length !== 5) {
 							poskodError = 'Sila masukkan poskod 5 digit yang lengkap';
 						}
+						isSubmitting = false;
 						cancel();
 						return;
 					}
 					
 					if (result.type === 'success') {
+						isSubmitting = false;
 						showSuccess = true;
 						showError = false;
 						
@@ -1037,6 +1305,7 @@
 						
 						redirectTimer = setTimeout(() => {
 							showSuccess = false;
+							isSubmitting = false;
 							// Reset semua form data
 							selectedGelaran = '';
 							mainFormData = { nama: '', nokp: '', gelaran: '' };
@@ -1108,6 +1377,7 @@
 							countdownSeconds = 5;
 						}, 5000); // 5 detik
 					} else if (result.type === 'failure') {
+						isSubmitting = false;
 						showError = true;
 						errorMessage = result.data?.error || 'Ralat berlaku. Sila cuba lagi.';
 					}
@@ -1481,7 +1751,7 @@
 			</div>
 
 			<div class="flex flex-col gap-2">
-				<label class="text-[13px] font-semibold text-gray-700" for="konsultan">Sales Consultant</label>
+				<label class="text-[13px] font-semibold text-gray-700" for="konsultan">Sales Consultant<span class="text-red-500 ml-1">*</span></label>
 				<div class="relative">
 					<div 
 						class="h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] outline-none cursor-pointer flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)]"
@@ -1522,7 +1792,7 @@
 						</div>
 					{/if}
 				</div>
-				<input type="hidden" name="konsultan" value={selectedKonsultan} />
+				<input type="hidden" name="konsultan" value={selectedKonsultan} required />
 			</div>
 
 
@@ -2163,13 +2433,37 @@
 			{/if}
 
 			{#if showError}
-				<div class="bg-[#fee2e2] border border-[#ef4444] rounded-[10px] p-4 mb-4 sm:mb-5 text-[#dc2626] text-sm text-center">
-					<p>{errorMessage}</p>
+				<div class="bg-[#fee2e2] border border-[#ef4444] rounded-[10px] p-4 mb-4 sm:mb-5 text-[#dc2626] text-sm">
+					<p class="font-semibold mb-2">{errorMessage}</p>
+					{#if validationErrors.length > 0}
+						<ul class="list-disc list-inside space-y-1">
+							{#each validationErrors as error}
+								<li>{error}</li>
+							{/each}
+						</ul>
+					{/if}
 				</div>
 			{/if}
 
 			<div class="col-span-full mt-3 sm:mt-2">
-				<button type="submit" class="w-full h-[46px] border-0 rounded-[10px] text-white font-semibold tracking-wide bg-gradient-to-r from-[#942392] to-[#942392] shadow-[0_6px_14px_rgba(148,35,146,0.25)] cursor-pointer hover:brightness-105">HANTAR</button>
+				<button 
+					type="submit" 
+					disabled={isSubmitting}
+					class={`w-full h-[46px] border-0 rounded-[10px] text-white font-semibold tracking-wide shadow-[0_6px_14px_rgba(148,35,146,0.25)] transition-all duration-200 ${
+						isSubmitting 
+							? 'bg-gray-400 cursor-not-allowed shadow-none' 
+							: 'bg-gradient-to-r from-[#942392] to-[#942392] cursor-pointer hover:brightness-105'
+					}`}
+				>
+					{#if isSubmitting}
+						<div class="flex items-center justify-center gap-3">
+							<div class="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+							<span>Sedang Menghantar...</span>
+						</div>
+					{:else}
+						HANTAR
+					{/if}
+				</button>
 			</div>
 		</form>
 		</div>
