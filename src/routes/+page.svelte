@@ -243,6 +243,10 @@
 		
 		console.log('Destination map after processing dates:', destinationMap);
 		
+		// Separate available and unavailable destinations
+		const availableDestinations = [];
+		const unavailableDestinations = [];
+		
 		// Build options for all destinations
 		destinations.forEach(destination => {
 			if (destination && destination.id && destination.name) {
@@ -250,13 +254,39 @@
 				const hasDates = destinationMap.has(destinationId);
 				console.log(`Destination ${destination.name} (${destination.id}): hasDates=${hasDates}`);
 				
-				options.push({
+				const option = {
 					value: destinationId,
 					label: hasDates ? destination.name : `${destination.name} (Tidak Tersedia)`,
 					disabled: !hasDates
-				});
+				};
+				
+				if (hasDates) {
+					availableDestinations.push(option);
+				} else {
+					unavailableDestinations.push(option);
+				}
 			}
 		});
+		
+		// Add available destinations first
+		if (availableDestinations.length > 0) {
+			options.push(...availableDestinations);
+		}
+		
+		// Add separator if both available and unavailable exist
+		if (availableDestinations.length > 0 && unavailableDestinations.length > 0) {
+			options.push({
+				value: '',
+				label: '───────────',
+				disabled: true,
+				isSeparator: true
+			});
+		}
+		
+		// Add unavailable destinations
+		if (unavailableDestinations.length > 0) {
+			options.push(...unavailableDestinations);
+		}
 		
 		console.log('Final options:', options);
 		console.log('====================================');
@@ -285,17 +315,46 @@
 			}
 		});
 		
-		// Build options for all categories
+		// Separate available and unavailable categories
+		const availableCategories = [];
+		const unavailableCategories = [];
+		
 		umrahCategories.forEach(category => {
 			const categoryId = String(category.id);
 			const hasDates = categoryMap.has(categoryId);
 			
-			options.push({
+			const option = {
 				value: categoryId,
 				label: hasDates ? category.name : `${category.name} (Tidak Tersedia)`,
 				disabled: !hasDates
-			});
+			};
+			
+			if (hasDates) {
+				availableCategories.push(option);
+			} else {
+				unavailableCategories.push(option);
+			}
 		});
+		
+		// Add available categories first
+		if (availableCategories.length > 0) {
+			options.push(...availableCategories);
+		}
+		
+		// Add separator if both available and unavailable exist
+		if (availableCategories.length > 0 && unavailableCategories.length > 0) {
+			options.push({
+				value: '',
+				label: '───────────',
+				disabled: true,
+				isSeparator: true
+			});
+		}
+		
+		// Add unavailable categories
+		if (unavailableCategories.length > 0) {
+			options.push(...unavailableCategories);
+		}
 		
 		return options;
 	}
@@ -324,17 +383,47 @@
 			}
 		});
 		
+		// Separate available and unavailable airlines
+		const availableAirlines = [];
+		const unavailableAirlines = [];
+		
 		// Build options for all airlines
 		airlines.forEach(airline => {
 			const airlineId = String(airline.id);
 			const hasDates = airlineMap.has(airlineId);
 			
-			options.push({
+			const option = {
 				value: airlineId,
 				label: hasDates ? airline.name : `${airline.name} (Tidak Tersedia)`,
 				disabled: !hasDates
-			});
+			};
+			
+			if (hasDates) {
+				availableAirlines.push(option);
+			} else {
+				unavailableAirlines.push(option);
+			}
 		});
+		
+		// Add available airlines first
+		if (availableAirlines.length > 0) {
+			options.push(...availableAirlines);
+		}
+		
+		// Add separator if both available and unavailable exist
+		if (availableAirlines.length > 0 && unavailableAirlines.length > 0) {
+			options.push({
+				value: '',
+				label: '───────────',
+				disabled: true,
+				isSeparator: true
+			});
+		}
+		
+		// Add unavailable airlines
+		if (unavailableAirlines.length > 0) {
+			options.push(...unavailableAirlines);
+		}
 		
 		return options;
 	}
@@ -348,81 +437,119 @@
 		
 		if (categoryName === 'PELAYARAN' || categoryName === 'UMRAH + PELAYARAN') {
 			// Options for cruise packages (PELAYARAN and UMRAH + PELAYARAN)
-			// LOW DECK
-			options.push({ 
-				value: 'low_deck_interior', 
-				label: `LOW DECK + INTERIOR ${record.low_deck_interior && record.low_deck_interior > 0 ? `(RM ${formatPrice(record.low_deck_interior)})` : '(Tidak Tersedia)'}`,
-				disabled: !record.low_deck_interior || record.low_deck_interior <= 0
-			});
+			const cruiseOptions = [
+				{ 
+					value: 'low_deck_interior', 
+					label: `LOW DECK + INTERIOR ${record.low_deck_interior && record.low_deck_interior > 0 ? `(RM ${formatPrice(record.low_deck_interior)})` : '(Tidak Tersedia)'}`,
+					disabled: !record.low_deck_interior || record.low_deck_interior <= 0
+				},
+				{ 
+					value: 'low_deck_seaview', 
+					label: `LOW DECK + SEAVIEW ${record.low_deck_seaview && record.low_deck_seaview > 0 ? `(RM ${formatPrice(record.low_deck_seaview)})` : '(Tidak Tersedia)'}`,
+					disabled: !record.low_deck_seaview || record.low_deck_seaview <= 0
+				},
+				{ 
+					value: 'low_deck_balcony', 
+					label: `LOW DECK + BALCONY ${record.low_deck_balcony && record.low_deck_balcony > 0 ? `(RM ${formatPrice(record.low_deck_balcony)})` : '(Tidak Tersedia)'}`,
+					disabled: !record.low_deck_balcony || record.low_deck_balcony <= 0
+				},
+				{ 
+					value: 'high_deck_interior', 
+					label: `HIGH DECK + INTERIOR ${record.high_deck_interior && record.high_deck_interior > 0 ? `(RM ${formatPrice(record.high_deck_interior)})` : '(Tidak Tersedia)'}`,
+					disabled: !record.high_deck_interior || record.high_deck_interior <= 0
+				},
+				{ 
+					value: 'high_deck_seaview', 
+					label: `HIGH DECK + SEAVIEW ${record.high_deck_seaview && record.high_deck_seaview > 0 ? `(RM ${formatPrice(record.high_deck_seaview)})` : '(Tidak Tersedia)'}`,
+					disabled: !record.high_deck_seaview || record.high_deck_seaview <= 0
+				},
+				{ 
+					value: 'high_deck_balcony', 
+					label: `HIGH DECK + BALCONY ${record.high_deck_balcony && record.high_deck_balcony > 0 ? `(RM ${formatPrice(record.high_deck_balcony)})` : '(Tidak Tersedia)'}`,
+					disabled: !record.high_deck_balcony || record.high_deck_balcony <= 0
+				}
+			];
 			
-			options.push({ 
-				value: 'low_deck_seaview', 
-				label: `LOW DECK + SEAVIEW ${record.low_deck_seaview && record.low_deck_seaview > 0 ? `(RM ${formatPrice(record.low_deck_seaview)})` : '(Tidak Tersedia)'}`,
-				disabled: !record.low_deck_seaview || record.low_deck_seaview <= 0
-			});
+			// Separate available and unavailable options
+			const available = cruiseOptions.filter(opt => !opt.disabled);
+			const unavailable = cruiseOptions.filter(opt => opt.disabled);
 			
-			options.push({ 
-				value: 'low_deck_balcony', 
-				label: `LOW DECK + BALCONY ${record.low_deck_balcony && record.low_deck_balcony > 0 ? `(RM ${formatPrice(record.low_deck_balcony)})` : '(Tidak Tersedia)'}`,
-				disabled: !record.low_deck_balcony || record.low_deck_balcony <= 0
-			});
+			// Add available options first
+			if (available.length > 0) {
+				options.push(...available);
+			}
 			
-			// HIGH DECK
-			options.push({ 
-				value: 'high_deck_interior', 
-				label: `HIGH DECK + INTERIOR ${record.high_deck_interior && record.high_deck_interior > 0 ? `(RM ${formatPrice(record.high_deck_interior)})` : '(Tidak Tersedia)'}`,
-				disabled: !record.high_deck_interior || record.high_deck_interior <= 0
-			});
+			// Add separator if both available and unavailable exist
+			if (available.length > 0 && unavailable.length > 0) {
+				options.push({
+					value: '',
+					label: '───────────',
+					disabled: true,
+					isSeparator: true
+				});
+			}
 			
-			options.push({ 
-				value: 'high_deck_seaview', 
-				label: `HIGH DECK + SEAVIEW ${record.high_deck_seaview && record.high_deck_seaview > 0 ? `(RM ${formatPrice(record.high_deck_seaview)})` : '(Tidak Tersedia)'}`,
-				disabled: !record.high_deck_seaview || record.high_deck_seaview <= 0
-			});
-			
-			options.push({ 
-				value: 'high_deck_balcony', 
-				label: `HIGH DECK + BALCONY ${record.high_deck_balcony && record.high_deck_balcony > 0 ? `(RM ${formatPrice(record.high_deck_balcony)})` : '(Tidak Tersedia)'}`,
-				disabled: !record.high_deck_balcony || record.high_deck_balcony <= 0
-			});
+			// Add unavailable options
+			if (unavailable.length > 0) {
+				options.push(...unavailable);
+			}
 			
 		} else {
 			// Options for regular umrah packages (UMRAH category or any other)
-			// Double - selalu tampil, disabled jika null/0
-			options.push({ 
-				value: 'double', 
-				label: `Bilik Double/Twin ${record.double && record.double > 0 ? `(RM ${formatPrice(record.double)})` : '(Tidak Tersedia)'}`,
-				disabled: !record.double || record.double <= 0
-			});
+			const regularOptions = [
+				{ 
+					value: 'double', 
+					label: `Bilik Double/Twin ${record.double && record.double > 0 ? `(RM ${formatPrice(record.double)})` : '(Tidak Tersedia)'}`,
+					disabled: !record.double || record.double <= 0
+				},
+				{ 
+					value: 'triple', 
+					label: `Bilik Triple ${record.triple && record.triple > 0 ? `(RM ${formatPrice(record.triple)})` : '(Tidak Tersedia)'}`,
+					disabled: !record.triple || record.triple <= 0
+				},
+				{ 
+					value: 'quad', 
+					label: `Bilik Quad ${record.quadruple && record.quadruple > 0 ? `(RM ${formatPrice(record.quadruple)})` : '(Tidak Tersedia)'}`,
+					disabled: !record.quadruple || record.quadruple <= 0
+				},
+				{ 
+					value: 'quintuple', 
+					label: `Bilik Quintuple ${record.quintuple && record.quintuple > 0 ? `(RM ${formatPrice(record.quintuple)})` : '(Tidak Tersedia)'}`,
+					disabled: !record.quintuple || record.quintuple <= 0
+				}
+			];
 			
-			// Triple - selalu tampil, disabled jika null/0
-			options.push({ 
-				value: 'triple', 
-				label: `Bilik Triple ${record.triple && record.triple > 0 ? `(RM ${formatPrice(record.triple)})` : '(Tidak Tersedia)'}`,
-				disabled: !record.triple || record.triple <= 0
-			});
-			
-			// Quadruple - selalu tampil, disabled jika null/0
-			options.push({ 
-				value: 'quad', 
-				label: `Bilik Quad ${record.quadruple && record.quadruple > 0 ? `(RM ${formatPrice(record.quadruple)})` : '(Tidak Tersedia)'}`,
-				disabled: !record.quadruple || record.quadruple <= 0
-			});
-			
-			// Quintuple - selalu tampil, disabled jika null/0
-			options.push({ 
-				value: 'quintuple', 
-				label: `Bilik Quintuple ${record.quintuple && record.quintuple > 0 ? `(RM ${formatPrice(record.quintuple)})` : '(Tidak Tersedia)'}`,
-				disabled: !record.quintuple || record.quintuple <= 0
-			});
-			
-			// Single - selalu tampil, disabled jika null/0
+			// Add single room if available
 			if (record.single) {
-				options.push({ 
+				regularOptions.push({ 
 					value: 'single', 
 					label: `Bilik Single ${record.single > 0 ? `(RM ${formatPrice(record.single)})` : '(Tidak Tersedia)'}`,
 					disabled: record.single <= 0
 				});
+			}
+			
+			// Separate available and unavailable options
+			const available = regularOptions.filter(opt => !opt.disabled);
+			const unavailable = regularOptions.filter(opt => opt.disabled);
+			
+			// Add available options first
+			if (available.length > 0) {
+				options.push(...available);
+			}
+			
+			// Add separator if both available and unavailable exist
+			if (available.length > 0 && unavailable.length > 0) {
+				options.push({
+					value: '',
+					label: '───────────',
+					disabled: true,
+					isSeparator: true
+				});
+			}
+			
+			// Add unavailable options
+			if (unavailable.length > 0) {
+				options.push(...unavailable);
 			}
 		}
 		
@@ -474,12 +601,27 @@
 			}
 		});
 		
-		// Buat array destinasi dengan status ketersediaan
-		return destinations.map(destination => ({
-			id: destination.id,
-			name: destination.name,
-			isAvailable: availableDestinations.has(String(destination.id))
-		}));
+		// Separate available and unavailable destinations
+		const available = [];
+		const unavailable = [];
+		
+		destinations.forEach(destination => {
+			const isAvailable = availableDestinations.has(String(destination.id));
+			const destinationData = {
+				id: destination.id,
+				name: destination.name,
+				isAvailable: isAvailable
+			};
+			
+			if (isAvailable) {
+				available.push(destinationData);
+			} else {
+				unavailable.push(destinationData);
+			}
+		});
+		
+		// Return available first, then unavailable
+		return [...available, ...unavailable];
 	}
 	
 	// Debug destinations data
@@ -589,7 +731,27 @@
 	// Effect untuk mengontrol visibility airline berdasarkan pilihan kategori umrah
 	$effect(() => {
 		if (selectedKategoriUmrah && showUmrahCategorySection) {
-			showAirlineSection = true;
+			// Cek apakah kategori yang dipilih adalah cruise murni (PELAYARAN saja)
+			const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
+			const isPureCruisePackage = selectedCategory && selectedCategory.name === 'PELAYARAN';
+			const isUmrahPlusCruisePackage = selectedCategory && selectedCategory.name === 'UMRAH + PELAYARAN';
+			
+			if (isPureCruisePackage) {
+				// Untuk paket PELAYARAN murni, langsung tampilkan section tarikh umrah tanpa perlu memilih penerbangan
+				showAirlineSection = false;
+				showUmrahDateSection = true;
+				selectedAirline = ''; // Reset airline selection
+			} else if (isUmrahPlusCruisePackage) {
+				// Untuk paket UMRAH + PELAYARAN, tetap tampilkan section penerbangan karena ada komponen umrah
+				showAirlineSection = true;
+				showUmrahDateSection = false;
+				selectedTarikhUmrah = '';
+			} else {
+				// Untuk paket umrah biasa, tetap tampilkan section penerbangan
+				showAirlineSection = true;
+				showUmrahDateSection = false;
+				selectedTarikhUmrah = '';
+			}
 		} else {
 			showAirlineSection = false;
 			showUmrahDateSection = false;
@@ -648,16 +810,35 @@
 
 	// Effect untuk filter umrah dates berdasarkan musim, kategori, dan airline yang dipilih
 	$effect(() => {
-		if (!selectedMusimUmrah || !selectedKategoriUmrah || !selectedAirline) {
+		if (!selectedMusimUmrah || !selectedKategoriUmrah) {
 			filteredUmrahDates = [];
 			return;
 		}
 
-		const filtered = umrahDates.filter(date => {
-			return String(date.umrah_season_id) === String(selectedMusimUmrah) && 
-				   String(date.umrah_category_id) === String(selectedKategoriUmrah) && 
-				   String(date.airline_id) === String(selectedAirline);
-		});
+		// Cek apakah kategori yang dipilih adalah cruise murni (PELAYARAN saja)
+		const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
+		const isPureCruisePackage = selectedCategory && selectedCategory.name === 'PELAYARAN';
+		const isUmrahPlusCruisePackage = selectedCategory && selectedCategory.name === 'UMRAH + PELAYARAN';
+
+		let filtered;
+		if (isPureCruisePackage) {
+			// Untuk paket PELAYARAN murni, filter hanya berdasarkan musim dan kategori (tanpa airline)
+			filtered = umrahDates.filter(date => {
+				return String(date.umrah_season_id) === String(selectedMusimUmrah) && 
+					   String(date.umrah_category_id) === String(selectedKategoriUmrah);
+			});
+		} else {
+			// Untuk paket UMRAH + PELAYARAN dan umrah biasa, filter berdasarkan musim, kategori, dan airline
+			if (!selectedAirline) {
+				filteredUmrahDates = [];
+				return;
+			}
+			filtered = umrahDates.filter(date => {
+				return String(date.umrah_season_id) === String(selectedMusimUmrah) && 
+					   String(date.umrah_category_id) === String(selectedKategoriUmrah) && 
+					   String(date.airline_id) === String(selectedAirline);
+			});
+		}
 		
 		console.log('Filtered Umrah Dates:', filtered);
 		filteredUmrahDates = filtered;
@@ -1827,7 +2008,7 @@
 					{#if isPakejOpen}
 						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 							<ul class="py-1">
-								{#each packageTypes as p}
+								{#each packageTypes.filter(p => p.name.toLowerCase().includes('pelancongan') || p.name.toLowerCase().includes('umrah')) as p}
 									<li 
 										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] {selectedPackageType === String(p.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}"
 										onclick={() => {
@@ -2038,19 +2219,25 @@
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
 									{#each (dynamicCategoryOptions.length > 0 ? dynamicCategoryOptions : fallbackCategoryOptions) as opt}
-										<li 
-											class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedKategoriUmrah === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
-											onclick={() => {
-												if (!opt.disabled) {
-													selectedKategoriUmrah = opt.value;
-													selectedAirline = '';
-													selectedTarikhUmrah = '';
-													isKategoriUmrahOpen = false;
-												}
-											}}
-										>
-											{opt.label}
-										</li>
+										{#if opt.isSeparator}
+											<li class="px-3 py-1">
+												<div class="border-t border-gray-300 my-1"></div>
+											</li>
+										{:else}
+											<li 
+												class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedKategoriUmrah === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
+												onclick={() => {
+													if (!opt.disabled) {
+														selectedKategoriUmrah = opt.value;
+														selectedAirline = '';
+														selectedTarikhUmrah = '';
+														isKategoriUmrahOpen = false;
+													}
+												}}
+											>
+												{opt.label}
+											</li>
+										{/if}
 									{/each}
 								</ul>
 							</div>
@@ -2093,18 +2280,24 @@
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
 									{#each (dynamicAirlineOptions.length > 0 ? dynamicAirlineOptions : fallbackAirlineOptions) as opt}
-										<li 
-											class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedAirline === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
-											onclick={() => {
-												if (!opt.disabled) {
-													selectedAirline = opt.value;
-													selectedTarikhUmrah = '';
-													isAirlineOpen = false;
-												}
-											}}
-										>
-											{opt.label}
-										</li>
+										{#if opt.isSeparator}
+											<li class="px-3 py-1">
+												<div class="border-t border-gray-300 my-1"></div>
+											</li>
+										{:else}
+											<li 
+												class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedAirline === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
+												onclick={() => {
+													if (!opt.disabled) {
+														selectedAirline = opt.value;
+														selectedTarikhUmrah = '';
+														isAirlineOpen = false;
+													}
+												}}
+											>
+												{opt.label}
+											</li>
+										{/if}
 									{/each}
 								</ul>
 							</div>
@@ -2119,9 +2312,9 @@
 					<label class="text-[13px] font-semibold text-gray-700" for="tarikh_umrah">Tarikh Umrah<span class="text-red-500 ml-1">*</span></label>
 					<div class="relative">
 						<div 
-							class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${!selectedAirline || filteredUmrahDates.length === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+							class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${filteredUmrahDates.length === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
 							onclick={() => {
-								if (selectedAirline && filteredUmrahDates.length > 0) {
+								if (filteredUmrahDates.length > 0) {
 									isTarikhUmrahOpen = !isTarikhUmrahOpen;
 								}
 							}}
@@ -2133,17 +2326,17 @@
 									return date ? `${formatDate(date.start_date)} - ${formatDate(date.end_date)}` : 'Pilih Tarikh';
 								})() : 'Pilih Tarikh'}
 							</span>
-							<svg 
-								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isTarikhUmrahOpen ? 'rotate-180' : ''} ${!selectedAirline || filteredUmrahDates.length === 0 ? 'opacity-50' : ''}`}
-								fill="none" 
-								stroke="currentColor" 
-								viewBox="0 0 24 24"
-							>
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-							</svg>
+															<svg 
+									class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isTarikhUmrahOpen ? 'rotate-180' : ''} ${filteredUmrahDates.length === 0 ? 'opacity-50' : ''}`}
+									fill="none" 
+									stroke="currentColor" 
+									viewBox="0 0 24 24"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+								</svg>
 						</div>
 						
-						{#if isTarikhUmrahOpen && selectedAirline && filteredUmrahDates.length > 0}
+						{#if isTarikhUmrahOpen && filteredUmrahDates.length > 0}
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
 									{#each filteredUmrahDates as date}
@@ -2250,17 +2443,23 @@
 								<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 									<ul class="py-1">
 										{#each (dynamicRoomOptions.length > 0 ? dynamicRoomOptions : fallbackRoomOptions) as opt}
-											<li 
-												class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedRoomType === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
-												onclick={() => {
-													if (!opt.disabled) {
-														selectedRoomType = opt.value;
-														isPilihBilikOpen = false;
-													}
-												}}
-											>
-												{opt.label}
-											</li>
+											{#if opt.isSeparator}
+												<li class="px-3 py-1">
+													<div class="border-t border-gray-300 my-1"></div>
+												</li>
+											{:else}
+												<li 
+													class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedRoomType === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
+													onclick={() => {
+														if (!opt.disabled) {
+															selectedRoomType = opt.value;
+															isPilihBilikOpen = false;
+														}
+													}}
+												>
+													{opt.label}
+												</li>
+											{/if}
 										{/each}
 									</ul>
 								</div>
@@ -2411,20 +2610,39 @@
 								/>
 							</div>
 						</div>
-						<div class="col-span-full mt-3 sm:mt-4">
-							<p class="text-[13px] font-semibold text-gray-700 mb-2">Kategori Peserta:</p>
-							<div class="flex flex-wrap gap-3 sm:gap-4">
-								<label class={checkboxLabelClass}>
-									<input type="radio" name="peserta_kategori_{peserta.id}" value="cwb" bind:group={peserta.kategori} class={checkboxInputClass} />
-									<span>CWB</span>
+						<!-- Kategori peserta (CWB, CNB, Infant) -->
+						<div class="col-span-full mt-4">
+							<label class="text-[13px] font-semibold text-gray-700 mb-3 block">Kategori Peserta {peserta.id}</label>
+							<div class="flex flex-wrap gap-4">
+								<label class="flex items-center gap-2 cursor-pointer">
+									<input 
+										type="radio" 
+										name="peserta_kategori_{peserta.id}" 
+										value="cwb" 
+										bind:group={peserta.kategori}
+										class="w-4 h-4 text-[#942392] focus:ring-[#942392] border-gray-300"
+									/>
+									<span class="text-sm text-gray-700">CWB</span>
 								</label>
-								<label class={checkboxLabelClass}>
-									<input type="radio" name="peserta_kategori_{peserta.id}" value="infant" bind:group={peserta.kategori} class={checkboxInputClass} />
-									<span>Infant</span>
+								<label class="flex items-center gap-2 cursor-pointer">
+									<input 
+										type="radio" 
+										name="peserta_kategori_{peserta.id}" 
+										value="cnb" 
+										bind:group={peserta.kategori}
+										class="w-4 h-4 text-[#942392] focus:ring-[#942392] border-gray-300"
+									/>
+									<span class="text-sm text-gray-700">CNB</span>
 								</label>
-								<label class={checkboxLabelClass}>
-									<input type="radio" name="peserta_kategori_{peserta.id}" value="cnb" bind:group={peserta.kategori} class={checkboxInputClass} />
-									<span>CNB</span>
+								<label class="flex items-center gap-2 cursor-pointer">
+									<input 
+										type="radio" 
+										name="peserta_kategori_{peserta.id}" 
+										value="infant" 
+										bind:group={peserta.kategori}
+										class="w-4 h-4 text-[#942392] focus:ring-[#942392] border-gray-300"
+									/>
+									<span class="text-sm text-gray-700">Infant</span>
 								</label>
 							</div>
 						</div>
