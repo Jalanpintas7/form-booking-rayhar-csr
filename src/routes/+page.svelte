@@ -1,5 +1,23 @@
 <script>
 	import { enhance } from '$app/forms';
+	
+	// Custom CSS untuk memastikan animation berfungsi
+	const customStyles = `
+		@keyframes spin {
+			from { transform: rotate(0deg); }
+			to { transform: rotate(360deg); }
+		}
+		.custom-spin {
+			animation: spin 1s linear infinite;
+		}
+	`;
+	
+	// Inject custom CSS
+	if (typeof document !== 'undefined') {
+		const style = document.createElement('style');
+		style.textContent = customStyles;
+		document.head.appendChild(style);
+	}
 	let { data, form } = $props();
 	const branches = data?.branches ?? [];
 	const packageTypes = data?.packageTypes ?? [];
@@ -708,7 +726,7 @@
 			selectedTarikh = '';
 			selectedMusimUmrah = '';
 			selectedKategoriUmrah = '';
-			selectedAirline = '';
+			selectedAirline = 'null'; // Reset ke 'null' untuk konsistensi
 			selectedTarikhUmrah = '';
 		}
 		
@@ -728,24 +746,27 @@
 		}
 	});
 
+	// Computed property untuk menentukan apakah airline required
+	let isAirlineRequired = $derived(() => {
+		if (!selectedKategoriUmrah) return false;
+		const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
+		// Jika kategori PELAYARAN atau UMRAH + PELAYARAN, airline tidak required (akan diisi null)
+		return selectedCategory && selectedCategory.name !== 'PELAYARAN' && selectedCategory.name !== 'UMRAH + PELAYARAN';
+	});
+
 	// Effect untuk mengontrol visibility airline berdasarkan pilihan kategori umrah
 	$effect(() => {
 		if (selectedKategoriUmrah && showUmrahCategorySection) {
-			// Cek apakah kategori yang dipilih adalah cruise murni (PELAYARAN saja)
+			// Cek apakah kategori yang dipilih adalah cruise murni (PELAYARAN saja) atau UMRAH + PELAYARAN
 			const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
 			const isPureCruisePackage = selectedCategory && selectedCategory.name === 'PELAYARAN';
 			const isUmrahPlusCruisePackage = selectedCategory && selectedCategory.name === 'UMRAH + PELAYARAN';
 			
-			if (isPureCruisePackage) {
-				// Untuk paket PELAYARAN murni, langsung tampilkan section tarikh umrah tanpa perlu memilih penerbangan
+			if (isPureCruisePackage || isUmrahPlusCruisePackage) {
+				// Untuk paket PELAYARAN murni dan UMRAH + PELAYARAN, langsung tampilkan section tarikh umrah tanpa perlu memilih penerbangan
 				showAirlineSection = false;
 				showUmrahDateSection = true;
-				selectedAirline = ''; // Reset airline selection
-			} else if (isUmrahPlusCruisePackage) {
-				// Untuk paket UMRAH + PELAYARAN, tetap tampilkan section penerbangan karena ada komponen umrah
-				showAirlineSection = true;
-				showUmrahDateSection = false;
-				selectedTarikhUmrah = '';
+				selectedAirline = 'null'; // Set airline ke 'null' untuk paket cruise
 			} else {
 				// Untuk paket umrah biasa, tetap tampilkan section penerbangan
 				showAirlineSection = true;
@@ -755,14 +776,23 @@
 		} else {
 			showAirlineSection = false;
 			showUmrahDateSection = false;
-			selectedAirline = '';
+			selectedAirline = 'null'; // Reset ke 'null' untuk konsistensi
 			selectedTarikhUmrah = '';
 		}
 	});
 
-	// Effect untuk mengontrol visibility tarikh umrah berdasarkan pilihan airline
+	// Effect untuk mengontrol visibility tarikh umrah berdasarkan pilihan airline atau kategori
 	$effect(() => {
-		if (selectedAirline && showAirlineSection) {
+		// Cek apakah kategori yang dipilih adalah cruise murni (PELAYARAN saja) atau UMRAH + PELAYARAN
+		const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
+		const isPureCruisePackage = selectedCategory && selectedCategory.name === 'PELAYARAN';
+		const isUmrahPlusCruisePackage = selectedCategory && selectedCategory.name === 'UMRAH + PELAYARAN';
+		
+		if (isPureCruisePackage || isUmrahPlusCruisePackage) {
+			// Untuk paket PELAYARAN murni dan UMRAH + PELAYARAN, tarikh umrah langsung ditampilkan
+			showUmrahDateSection = true;
+		} else if (selectedAirline && selectedAirline !== 'null' && showAirlineSection) {
+			// Untuk paket lain, tarikh umrah ditampilkan setelah memilih airline
 			showUmrahDateSection = true;
 		} else {
 			showUmrahDateSection = false;
@@ -821,15 +851,15 @@
 		const isUmrahPlusCruisePackage = selectedCategory && selectedCategory.name === 'UMRAH + PELAYARAN';
 
 		let filtered;
-		if (isPureCruisePackage) {
-			// Untuk paket PELAYARAN murni, filter hanya berdasarkan musim dan kategori (tanpa airline)
+		if (isPureCruisePackage || isUmrahPlusCruisePackage) {
+			// Untuk paket PELAYARAN murni dan UMRAH + PELAYARAN, filter hanya berdasarkan musim dan kategori (tanpa airline)
 			filtered = umrahDates.filter(date => {
 				return String(date.umrah_season_id) === String(selectedMusimUmrah) && 
 					   String(date.umrah_category_id) === String(selectedKategoriUmrah);
 			});
 		} else {
-			// Untuk paket UMRAH + PELAYARAN dan umrah biasa, filter berdasarkan musim, kategori, dan airline
-			if (!selectedAirline) {
+			// Untuk paket umrah biasa, filter berdasarkan musim, kategori, dan airline
+			if (!selectedAirline || selectedAirline === 'null') {
 				filteredUmrahDates = [];
 				return;
 			}
@@ -1103,11 +1133,32 @@
 	// Format date untuk display
 	function formatDate(dateString) {
 		const date = new Date(dateString);
-		return date.toLocaleDateString('ms-MY', {
-			day: '2-digit',
-			month: '2-digit',
-			year: 'numeric'
-		});
+		
+		// Mapping bulan ke bahasa Melayu
+		const bulanMap = {
+			'Jan': 'Jan',
+			'Feb': 'Feb', 
+			'Mar': 'Mac',
+			'Apr': 'Apr',
+			'May': 'Mei',
+			'Jun': 'Jun',
+			'Jul': 'Jul',
+			'Aug': 'Ogo',
+			'Sep': 'Sep',
+			'Oct': 'Okt',
+			'Nov': 'Nov',
+			'Dec': 'Dis'
+		};
+		
+		// Format: 27 Ago 2026
+		const day = date.getDate();
+		const month = date.toLocaleDateString('en-US', { month: 'short' });
+		const year = date.getFullYear();
+		
+		// Convert month to Malay abbreviation
+		const malayMonth = bulanMap[month] || month;
+		
+		return `${day} ${malayMonth} ${year}`;
 	}
 
 	// Format price untuk display
@@ -1205,9 +1256,12 @@
 			if (!selectedKategoriUmrah) {
 				errors.push('Sila pilih kategori umrah anda');
 			}
-			if (!selectedAirline) {
+			
+			// Hanya validasi airline jika required
+			if (isAirlineRequired && !selectedAirline) {
 				errors.push('Sila pilih penerbangan anda');
 			}
+			
 			if (!selectedTarikhUmrah) {
 				errors.push('Sila pilih tarikh umrah anda');
 			}
@@ -1382,7 +1436,7 @@
 					selectedBilangan = '';
 					selectedMusimUmrah = '';
 					selectedKategoriUmrah = '';
-					selectedAirline = '';
+					selectedAirline = 'null';
 					selectedTarikhUmrah = '';
 					perluPartnerBilik = false;
 					selectedRoomType = '';
@@ -1442,37 +1496,59 @@
 		</div>
 	{:else}
 		<div class="bg-white border border-[#e5e7eb] rounded-[14px] shadow-[0_10px_24px_rgba(17,24,39,0.06)] p-4 sm:p-7 max-w-[720px] mx-auto mb-6 sm:mb-10">
-			<form class="grid grid-cols-2 gap-y-3 gap-x-4 sm:gap-y-4 sm:gap-x-5 max-[720px]:grid-cols-1" method="POST" use:enhance={() => {
-				return async ({ result, cancel }) => {
+			<form 
+				class="grid grid-cols-2 gap-y-3 gap-x-4 sm:gap-y-4 sm:gap-x-5 max-[720px]:grid-cols-1" 
+				method="POST" 
+				onsubmit={(e) => {
+					console.log('=== FORM ONSUBMIT TRIGGERED ===');
+					console.log('isSubmitting before onsubmit:', isSubmitting);
+					
 					// Clear previous errors
 					clearErrors();
 					
-					// Set loading state
+					// Set loading state IMMEDIATELY when form is submitted
 					isSubmitting = true;
+					console.log('isSubmitting set to true in onsubmit:', isSubmitting);
 					
 					// Validasi form sebelum submit
 					const errors = validateForm();
+					console.log('Validation errors in onsubmit:', errors);
+					
 					if (errors.length > 0) {
+						console.log('Validation failed in onsubmit, preventing submission');
 						showValidationErrors(errors);
 						isSubmitting = false;
-						cancel();
-						return;
+						console.log('isSubmitting reset to false after validation error in onsubmit:', isSubmitting);
+						e.preventDefault();
+						return false;
 					}
 					
 					// Prevent form submission if there's a postcode error or incomplete postcode
 					if (poskodError || poskodValue.length !== 5) {
+						console.log('Postcode validation failed in onsubmit, preventing submission');
 						if (poskodValue.length !== 5) {
 							poskodError = 'Sila masukkan poskod 5 digit yang lengkap';
 						}
 						isSubmitting = false;
-						cancel();
-						return;
+						console.log('isSubmitting reset to false after postcode error in onsubmit:', isSubmitting);
+						e.preventDefault();
+						return false;
 					}
 					
-					if (result.type === 'success') {
-						isSubmitting = false;
-						showSuccess = true;
-						showError = false;
+					console.log('Form validation passed in onsubmit, allowing submission...');
+					// Don't prevent default - let form submit normally
+				}}
+				use:enhance={() => {
+					return async ({ result, cancel }) => {
+						console.log('=== FORM ENHANCEMENT CALLBACK ===');
+						console.log('isSubmitting in enhancement callback:', isSubmitting);
+						
+						if (result.type === 'success') {
+							console.log('Form submission successful');
+							isSubmitting = false;
+							console.log('isSubmitting reset to false after success:', isSubmitting);
+							showSuccess = true;
+							showError = false;
 						
 						// Set timer untuk redirect kembali ke form setelah 5 detik
 						countdownSeconds = 5;
@@ -1501,7 +1577,7 @@
 							selectedBilangan = '';
 							selectedMusimUmrah = '';
 							selectedKategoriUmrah = '';
-							selectedAirline = '';
+							selectedAirline = 'null';
 							selectedTarikhUmrah = '';
 							perluPartnerBilik = false;
 							selectedRoomType = '';
@@ -1558,7 +1634,9 @@
 							countdownSeconds = 5;
 						}, 5000); // 5 detik
 					} else if (result.type === 'failure') {
+						console.log('Form submission failed:', result.data?.error);
 						isSubmitting = false;
+						console.log('isSubmitting reset to false after failure:', isSubmitting);
 						showError = true;
 						errorMessage = result.data?.error || 'Ralat berlaku. Sila cuba lagi.';
 					}
@@ -1942,7 +2020,7 @@
 						<span class={selectedKonsultan ? 'text-gray-900' : 'text-gray-500'}>
 							{selectedKonsultan ? (() => {
 								const consultant = consultants.find(c => c.id === selectedKonsultan);
-								return consultant ? `${consultant.sales_consultant_number} - ${consultant.name}` : 'Pilih Sales Consultant';
+								return consultant ? `${consultant.sales_consultant_number}. ${consultant.name}` : 'Pilih Sales Consultant';
 							})() : 'Pilih Sales Consultant'}
 						</span>
 						<svg 
@@ -1966,7 +2044,7 @@
 											isKonsultanOpen = false;
 										}}
 									>
-										<span class="font-semibold text-gray-900 mr-2">{c.sales_consultant_number}</span> - {c.name}
+										{c.sales_consultant_number}. {c.name}
 									</li>
 								{/each}
 							</ul>
@@ -2229,7 +2307,7 @@
 												onclick={() => {
 													if (!opt.disabled) {
 														selectedKategoriUmrah = opt.value;
-														selectedAirline = '';
+														selectedAirline = 'null';
 														selectedTarikhUmrah = '';
 														isKategoriUmrahOpen = false;
 													}
@@ -2249,7 +2327,12 @@
 
 			{#if showAirlineSection}
 				<div class="flex flex-col gap-2">
-					<label class="text-[13px] font-semibold text-gray-700" for="airline">Penerbangan<span class="text-red-500 ml-1">*</span></label>
+					<label class="text-[13px] font-semibold text-gray-700" for="airline">
+						Penerbangan
+						{#if isAirlineRequired}
+							<span class="text-red-500 ml-1">*</span>
+						{/if}
+					</label>
 					<div class="relative">
 						<div 
 							class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${(dynamicAirlineOptions?.length || 0) === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
@@ -2260,8 +2343,8 @@
 							}}
 							onblur={() => setTimeout(() => isAirlineOpen = false, 200)}
 						>
-							<span class={selectedAirline ? 'text-gray-900' : 'text-gray-500'}>
-								{selectedAirline ? (() => {
+							<span class={selectedAirline && selectedAirline !== 'null' ? 'text-gray-900' : 'text-gray-500'}>
+								{selectedAirline && selectedAirline !== 'null' ? (() => {
 									const airlineOption = (dynamicAirlineOptions.length > 0 ? dynamicAirlineOptions : fallbackAirlineOptions).find(opt => opt.value === selectedAirline);
 									return airlineOption ? airlineOption.label : 'Pilih Penerbangan';
 								})() : 'Pilih Penerbangan'}
@@ -2286,7 +2369,7 @@
 											</li>
 										{:else}
 											<li 
-												class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedAirline === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
+												class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedAirline === opt.value && selectedAirline !== 'null' ? 'bg-purple-100 text-purple-700' : ''}`}
 												onclick={() => {
 													if (!opt.disabled) {
 														selectedAirline = opt.value;
@@ -2303,7 +2386,7 @@
 							</div>
 						{/if}
 					</div>
-					<input type="hidden" name="airline" value={selectedAirline} required />
+					<input type="hidden" name="airline" value={selectedAirline} />
 				</div>
 			{/if}
 
@@ -2511,14 +2594,13 @@
 					<input type="hidden" name="bilangan" value={selectedBilangan} required />
 				</div>
 
-				{#if selectedBilangan}
-					<div class="col-span-full">
-						<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
-							<input type="checkbox" name="perlu_partner_bilik" bind:checked={perluPartnerBilik} class={checkboxInputClass} />
-							<span>Perlukan partner bilik</span>
-						</label>
-					</div>
-				{/if}
+				<!-- Checkbox perlu partner bilik selalu ditampilkan -->
+				<div class="col-span-full">
+					<label class="flex items-center gap-3 cursor-pointer text-sm text-gray-700">
+						<input type="checkbox" name="perlu_partner_bilik" bind:checked={perluPartnerBilik} class={checkboxInputClass} />
+						<span>Perlukan partner bilik</span>
+					</label>
+				</div>
 			{/if}
 
 			<div class="col-span-full flex items-center gap-5 my-[30px]">
@@ -2612,7 +2694,7 @@
 						</div>
 						<!-- Kategori peserta (CWB, CNB, Infant) -->
 						<div class="col-span-full mt-4">
-							<label class="text-[13px] font-semibold text-gray-700 mb-3 block">Kategori Peserta {peserta.id}</label>
+							<label class="text-[13px] font-semibold text-gray-700 mb-3 block">Jika Kategori Kanak-Kanak</label>
 							<div class="flex flex-wrap gap-4">
 								<label class="flex items-center gap-2 cursor-pointer">
 									<input 
@@ -2675,7 +2757,7 @@
 				>
 					{#if isSubmitting}
 						<div class="flex items-center justify-center gap-3">
-							<div class="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+							<div class="custom-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
 							<span>Sedang Menghantar...</span>
 						</div>
 					{:else}
