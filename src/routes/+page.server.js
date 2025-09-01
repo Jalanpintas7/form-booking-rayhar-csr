@@ -257,6 +257,7 @@ async function sendToN8n(formData, bookingId, pesertaData) {
 		let tarikh_jangkaan = '';
 		let pilihan_penerbangan = '';
 		let kod_tempa = '';
+		let sales_uid = '';
 		
 		// Fungsi untuk format tanggal ke bahasa Malaysia
 		function formatDateToMalaysian(dateString) {
@@ -320,6 +321,12 @@ async function sendToN8n(formData, bookingId, pesertaData) {
 			}
 		}
 
+		// Ambil data sales consultant untuk sales_uid
+		const consultant_id = formData.get('konsultan');
+		if (consultant_id) {
+			sales_uid = consultant_id; // Langsung gunakan ID dari sales consultant
+		}
+
 		// Siapkan data butir mahram
 		const butir_mahram = {};
 		for (let i = 1; i <= 11; i++) {
@@ -357,6 +364,7 @@ async function sendToN8n(formData, bookingId, pesertaData) {
 				"4 bilik": pilih_bilik === 'quad' ? true : '',
 				"5 bilik": pilih_bilik === 'quintuple' ? true : '',
 				"Pilihan Penerbangan": pilihan_penerbangan,
+				"sales_uid": sales_uid,
 				butir_mahram: butir_mahram
 			},
 			invoice: {
@@ -376,7 +384,7 @@ async function sendToN8n(formData, bookingId, pesertaData) {
 		console.log('========================');
 
 		// Kirim data ke N8n webhook dengan URL yang baru
-		const response = await fetch('https://n8n-ezaj8apw.runner.web.id/webhook/rayhar-invoice', {
+		const response = await fetch('https://n8n-wb9pbdns.runner.web.id/webhook/rayhar-invoice', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
