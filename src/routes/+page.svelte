@@ -148,6 +148,10 @@
 	let isTarikhUmrahOpen = $state(false);
 	let isTarikhOpen = $state(false);
 	let isPilihBilikOpen = $state(false);
+	
+	// State untuk pilih bilik pelancongan
+	let selectedPelanconganRoomType = $state('');
+	let isPilihBilikPelanconganOpen = $state(false);
 	let isBilanganOpen = $state(false);
 	let isNegeriOpen = $state(false);
 	let isBandarOpen = $state(false);
@@ -161,6 +165,18 @@
 	let searchTermDestinations = $state('');
 	let searchTimeoutBranches = null;
 	let searchTimeoutDestinations = null;
+
+	// State untuk total harga
+	let totalHargaPelancongan = $state(0);
+	let totalHargaUmrah = $state(0);
+	
+	// Reactive selectedDate untuk pelancongan
+	let selectedDate = $derived(() => {
+		if (!selectedTarikh || !outboundDates || outboundDates.length === 0) {
+			return null;
+		}
+		return outboundDates.find(d => String(d.id) === String(selectedTarikh));
+	});
 
 	// Fungsi debounce untuk search
 	function debounceSearch(func, delay) {
@@ -200,7 +216,6 @@
 	// Fallback static options if no destinations have dates
 	const fallbackDestinationOptions = $derived(() => {
 		if (!destinations || destinations.length === 0) {
-			console.log('No destinations for fallback options');
 			return [];
 		}
 		
@@ -210,12 +225,14 @@
 			disabled: true
 		}));
 		
-		console.log('Fallback destination options created:', options);
 		return options;
 	});
 
 	// Derived room options from selected umrah date record
 	let dynamicRoomOptions = $state([]);
+	
+	// Derived room options for pelancongan based on selected destination and date
+	let dynamicPelanconganRoomOptions = $state([]);
 
 	// Derived airline options based on selected musim and kategori
 	let dynamicAirlineOptions = $state([]);
@@ -227,18 +244,12 @@
 	let dynamicDestinationOptions = $state([]);
 
 	function buildDestinationOptionsFromOutboundDates() {
-		console.log('=== BUILDING DESTINATION OPTIONS ===');
-		console.log('Input destinations:', destinations);
-		console.log('Input outboundDates:', outboundDates);
-		
 		// Validasi input
 		if (!destinations || !Array.isArray(destinations) || destinations.length === 0) {
-			console.log('Invalid destinations input');
 			return [];
 		}
 		
 		if (!outboundDates || !Array.isArray(outboundDates) || outboundDates.length === 0) {
-			console.log('Invalid outboundDates input');
 			return [];
 		}
 		
@@ -249,7 +260,6 @@
 		outboundDates.forEach(date => {
 			if (date && date.destination_id) {
 				const destinationId = String(date.destination_id);
-				console.log(`Processing date ${date.id}: destination_id=${date.destination_id}, stringified=${destinationId}`);
 				if (!destinationMap.has(destinationId)) {
 					destinationMap.set(destinationId, {
 						id: destinationId,
@@ -258,8 +268,6 @@
 				}
 			}
 		});
-		
-		console.log('Destination map after processing dates:', destinationMap);
 		
 		// Separate available and unavailable destinations
 		const availableDestinations = [];
@@ -270,7 +278,6 @@
 			if (destination && destination.id && destination.name) {
 				const destinationId = String(destination.id);
 				const hasDates = destinationMap.has(destinationId);
-				console.log(`Destination ${destination.name} (${destination.id}): hasDates=${hasDates}`);
 				
 				const option = {
 					value: destinationId,
@@ -306,8 +313,6 @@
 			options.push(...unavailableDestinations);
 		}
 		
-		console.log('Final options:', options);
-		console.log('====================================');
 		return options;
 	}
 
@@ -453,8 +458,8 @@
 		// Check category to determine room type options
 		const categoryName = record.umrah_categories?.name;
 		
-		if (categoryName === 'PELAYARAN' || categoryName === 'UMRAH + PELAYARAN') {
-			// Options for cruise packages (PELAYARAN and UMRAH + PELAYARAN)
+		if (categoryName === 'Pelayaran' || categoryName === 'Umrah + Pelayaran') {
+			// Options for cruise packages (Pelayaran and Umrah + Pelayaran)
 			const cruiseOptions = [
 				{ 
 					value: 'low_deck_interior', 
@@ -573,6 +578,372 @@
 		
 		return options;
 	}
+	
+	// Function untuk membangun opsi bilik untuk pelancongan berdasarkan destinasi dan tarikh yang dipilih
+	function buildPelanconganRoomOptions(destinationId, dateId) {
+		if (!destinationId || !dateId) return [];
+		
+		// Cari data tarikh berdasarkan ID
+		const selectedDate = outboundDates.find(d => String(d.id) === String(dateId));
+		if (!selectedDate) return [];
+		
+		// Cek apakah destinasi sesuai
+		if (String(selectedDate.destination_id) !== String(destinationId)) return [];
+		
+		const options = [];
+		
+		// Buat opsi untuk single, double, triple berdasarkan data yang tersedia
+		const roomTypes = [
+			{ 
+				value: 'single', 
+				label: 'Bilik Single', 
+				price: selectedDate.single,
+				disabled: !selectedDate.single || selectedDate.single === '-' || selectedDate.single === '' || parseFloat(selectedDate.single) <= 0
+			},
+			{ 
+				value: 'double', 
+				label: 'Bilik Double/Twin', 
+				price: selectedDate.double,
+				disabled: !selectedDate.double || selectedDate.double === '-' || selectedDate.double === '' || parseFloat(selectedDate.double) <= 0
+			},
+			{ 
+				value: 'triple', 
+				label: 'Bilik Triple', 
+				price: selectedDate.triple,
+				disabled: !selectedDate.triple || selectedDate.triple === '-' || selectedDate.triple === '' || parseFloat(selectedDate.triple) <= 0
+			}
+		];
+		
+		// Separate available and unavailable options
+		const available = roomTypes.filter(opt => !opt.disabled);
+		const unavailable = roomTypes.filter(opt => opt.disabled);
+		
+		// Add available options first
+		if (available.length > 0) {
+			options.push(...available.map(opt => ({
+				value: opt.value,
+				label: `${opt.label} (RM ${opt.price})`,
+				disabled: false
+			})));
+		}
+		
+		// Add separator if both available and unavailable exist
+		if (available.length > 0 && unavailable.length > 0) {
+			options.push({
+				value: '',
+				label: '───────────',
+				disabled: true,
+				isSeparator: true
+			});
+		}
+		
+		// Add unavailable options
+		if (unavailable.length > 0) {
+			options.push(...unavailable.map(opt => ({
+				value: opt.value,
+				label: `${opt.label} (Tidak Tersedia)`,
+				disabled: true
+			})));
+		}
+		
+		return options;
+	}
+
+	// Function untuk menghitung total harga paket pelancongan
+	function calculatePelanconganTotalPrice() {
+		if (!selectedDestinasi || !selectedTarikh || !selectedPelanconganRoomType || !selectedDate) {
+			return 0;
+		}
+
+		// selectedDate sudah reactive, tidak perlu cari lagi
+
+		// Dapatkan harga dasar berdasarkan jenis bilik yang dipilih
+		let basePrice = 0;
+		switch (selectedPelanconganRoomType) {
+			case 'single':
+				basePrice = parseFloat(selectedDate.single) || 0;
+				break;
+			case 'double':
+				basePrice = parseFloat(selectedDate.double) || 0;
+				break;
+			case 'triple':
+				basePrice = parseFloat(selectedDate.triple) || 0;
+				break;
+			default:
+				return 0;
+		}
+
+		if (basePrice <= 0) return 0;
+
+		// Hitung total berdasarkan jumlah peserta
+		let totalPrice = basePrice; // Peserta 1 (pendaftar utama)
+
+		// Tambahkan harga untuk peserta tambahan berdasarkan kategori
+		if (selectedBilangan && pesertaData.length > 0) {
+			pesertaData.forEach(peserta => {
+				if (peserta.kategori === 'cwb') {
+					// CWB (Child With Bed) - gunakan harga spesifik dari Supabase
+					const cwbPrice = parseFloat(selectedDate.cwb) || 0;
+					totalPrice += cwbPrice > 0 ? cwbPrice : basePrice; // Fallback ke harga dewasa jika CWB tidak tersedia
+				} else if (peserta.kategori === 'cnb') {
+					// CNB (Child No Bed) - gunakan harga spesifik dari Supabase
+					const cnbPrice = parseFloat(selectedDate.cnb) || 0;
+					totalPrice += cnbPrice > 0 ? cnbPrice : basePrice; // Fallback ke harga dewasa jika CNB tidak tersedia
+				} else if (peserta.kategori === 'infant') {
+					// Infant - gunakan harga spesifik dari Supabase
+					const infantPrice = parseFloat(selectedDate.infant) || 0;
+					totalPrice += infantPrice > 0 ? infantPrice : basePrice; // Fallback ke harga dewasa jika Infant tidak tersedia
+				} else {
+					// Dewasa (tidak ada kategori khusus) - 100% dari harga dewasa
+					totalPrice += basePrice;
+				}
+			});
+		}
+
+		return totalPrice;
+	}
+
+	// Function untuk menghitung total harga paket umrah
+	function calculateUmrahTotalPrice() {
+
+		
+		if (!selectedTarikhUmrah || !selectedRoomType) {
+			return 0;
+		}
+
+		// Cari data tarikh umrah yang dipilih
+		const selectedUmrahDate = filteredUmrahDates.find(d => String(d.id) === String(selectedTarikhUmrah));
+		
+		if (!selectedUmrahDate) {
+			return 0;
+		}
+
+		// Dapatkan harga dasar berdasarkan jenis bilik yang dipilih
+		let basePrice = 0;
+		let roomTypeLabel = '';
+		
+
+		
+		switch (selectedRoomType) {
+			case 'double':
+				basePrice = parseFloat(selectedUmrahDate.double) || 0;
+				roomTypeLabel = 'Bilik Double/Twin';
+				break;
+			case 'triple':
+				basePrice = parseFloat(selectedUmrahDate.triple) || 0;
+				roomTypeLabel = 'Bilik Triple';
+				break;
+			case 'quad':
+				basePrice = parseFloat(selectedUmrahDate.quadruple) || 0;
+				roomTypeLabel = 'Bilik Quad';
+				break;
+			case 'quintuple':
+				basePrice = parseFloat(selectedUmrahDate.quintuple) || 0;
+				roomTypeLabel = 'Bilik Quintuple';
+				break;
+			case 'single':
+				basePrice = parseFloat(selectedUmrahDate.single) || 0;
+				roomTypeLabel = 'Bilik Single';
+				break;
+			// Tambahkan case untuk tipe kamar deck (cruise packages)
+			case 'low_deck_interior':
+				basePrice = parseFloat(selectedUmrahDate.low_deck_interior) || 0;
+				roomTypeLabel = 'LOW DECK + INTERIOR';
+				break;
+			case 'low_deck_seaview':
+				basePrice = parseFloat(selectedUmrahDate.low_deck_seaview) || 0;
+				roomTypeLabel = 'LOW DECK + SEAVIEW';
+				break;
+			case 'low_deck_balcony':
+				basePrice = parseFloat(selectedUmrahDate.low_deck_balcony) || 0;
+				roomTypeLabel = 'LOW DECK + BALCONY';
+				break;
+			case 'high_deck_interior':
+				basePrice = parseFloat(selectedUmrahDate.high_deck_interior) || 0;
+				roomTypeLabel = 'HIGH DECK + INTERIOR';
+				break;
+			case 'high_deck_seaview':
+				basePrice = parseFloat(selectedUmrahDate.high_deck_seaview) || 0;
+				roomTypeLabel = 'HIGH DECK + SEAVIEW';
+				break;
+			case 'high_deck_balcony':
+				basePrice = parseFloat(selectedUmrahDate.high_deck_balcony) || 0;
+				roomTypeLabel = 'HIGH DECK + BALCONY';
+				break;
+			default:
+				return 0;
+		}
+
+		if (basePrice <= 0) {
+			return 0;
+		}
+
+		// Hitung total berdasarkan jumlah peserta
+		let totalPrice = basePrice; // Peserta 1 (pendaftar utama)
+
+		// Tambahkan harga untuk peserta tambahan berdasarkan kategori
+		if (selectedBilangan && pesertaData.length > 0) {
+			pesertaData.forEach((peserta, index) => {
+				if (peserta.kategori === 'cwb') {
+					// CWB (Child With Bed) - kurangi RM 500 dari harga bilik yang dipilih
+					let cwbPrice = basePrice - 500;
+					// Pastikan harga tidak negatif
+					cwbPrice = Math.max(cwbPrice, 0);
+					totalPrice += cwbPrice;
+				} else if (peserta.kategori === 'cnb') {
+					// CNB (Child No Bed) - gunakan harga spesifik dari Supabase
+					const cnbPrice = parseFloat(selectedUmrahDate.cnb) || 0;
+					const finalCnbPrice = cnbPrice > 0 ? cnbPrice : basePrice;
+					totalPrice += finalCnbPrice;
+				} else if (peserta.kategori === 'infant') {
+					// Infant - gunakan harga spesifik dari Supabase
+					const infantPrice = parseFloat(selectedUmrahDate.infant) || 0;
+					const finalInfantPrice = infantPrice > 0 ? infantPrice : basePrice;
+					totalPrice += finalInfantPrice;
+				} else {
+					// Dewasa (tidak ada kategori khusus) - 100% dari harga bilik yang dipilih
+					totalPrice += basePrice;
+				}
+			});
+		}
+
+		return totalPrice;
+	}
+
+	// Function untuk mendapatkan detail breakdown harga umrah
+	function getUmrahPriceBreakdown() {
+		if (!selectedTarikhUmrah || !selectedRoomType) {
+			return null;
+		}
+
+		// Cari data tarikh umrah yang dipilih
+		const selectedUmrahDate = filteredUmrahDates.find(d => String(d.id) === String(selectedTarikhUmrah));
+		if (!selectedUmrahDate) return null;
+
+		// Dapatkan harga dasar berdasarkan jenis bilik yang dipilih
+		let basePrice = 0;
+		let roomTypeLabel = '';
+		let isCruisePackage = false;
+		
+		switch (selectedRoomType) {
+			case 'double':
+				basePrice = parseFloat(selectedUmrahDate.double) || 0;
+				roomTypeLabel = 'Bilik Double/Twin';
+				break;
+			case 'triple':
+				basePrice = parseFloat(selectedUmrahDate.triple) || 0;
+				roomTypeLabel = 'Bilik Triple';
+				break;
+			case 'quad':
+				basePrice = parseFloat(selectedUmrahDate.quadruple) || 0;
+				roomTypeLabel = 'Bilik Quad';
+				break;
+			case 'quintuple':
+				basePrice = parseFloat(selectedUmrahDate.quintuple) || 0;
+				roomTypeLabel = 'Bilik Quintuple';
+				break;
+			case 'single':
+				basePrice = parseFloat(selectedUmrahDate.single) || 0;
+				roomTypeLabel = 'Bilik Single';
+				break;
+			// Tambahkan case untuk tipe kamar deck (cruise packages)
+			case 'low_deck_interior':
+				basePrice = parseFloat(selectedUmrahDate.low_deck_interior) || 0;
+				roomTypeLabel = 'LOW DECK + INTERIOR';
+				isCruisePackage = true;
+				break;
+			case 'low_deck_seaview':
+				basePrice = parseFloat(selectedUmrahDate.low_deck_seaview) || 0;
+				roomTypeLabel = 'LOW DECK + SEAVIEW';
+				isCruisePackage = true;
+				break;
+			case 'low_deck_balcony':
+				basePrice = parseFloat(selectedUmrahDate.low_deck_balcony) || 0;
+				roomTypeLabel = 'LOW DECK + BALCONY';
+				isCruisePackage = true;
+				break;
+			case 'high_deck_interior':
+				basePrice = parseFloat(selectedUmrahDate.high_deck_interior) || 0;
+				roomTypeLabel = 'HIGH DECK + INTERIOR';
+				isCruisePackage = true;
+				break;
+			case 'high_deck_seaview':
+				basePrice = parseFloat(selectedUmrahDate.high_deck_seaview) || 0;
+				roomTypeLabel = 'HIGH DECK + SEAVIEW';
+				isCruisePackage = true;
+				break;
+			case 'high_deck_balcony':
+				basePrice = parseFloat(selectedUmrahDate.high_deck_balcony) || 0;
+				roomTypeLabel = 'HIGH DECK + BALCONY';
+				isCruisePackage = true;
+				break;
+			default:
+				return null;
+		}
+
+		if (basePrice <= 0) return null;
+
+		const breakdown = {
+			roomType: roomTypeLabel,
+			basePrice: basePrice,
+			isCruisePackage: isCruisePackage,
+			participants: [
+				{
+					name: 'Peserta 1 (Pendaftar Utama)',
+					category: 'Dewasa',
+					price: basePrice,
+					percentage: '100%'
+				}
+			],
+			totalPrice: basePrice
+		};
+
+		// Tambahkan breakdown untuk peserta tambahan
+		if (selectedBilangan && pesertaData.length > 0) {
+			pesertaData.forEach((peserta, index) => {
+				let participantPrice = 0;
+				let category = '';
+				let percentage = '';
+
+				if (peserta.kategori === 'cwb') {
+					// CWB (Child With Bed) - kurangi RM 500 dari harga bilik
+					let cwbPrice = basePrice - 500;
+					cwbPrice = Math.max(cwbPrice, 0);
+					participantPrice = cwbPrice;
+					category = 'CWB (Child With Bed)';
+					percentage = `RM ${formatPrice(cwbPrice)} (${basePrice > 500 ? `RM ${formatPrice(basePrice)} - RM 500` : 'Harga Minimum'})`;
+				} else if (peserta.kategori === 'cnb') {
+					// CNB (Child No Bed) - gunakan harga spesifik dari Supabase
+					const cnbPrice = parseFloat(selectedUmrahDate.cnb) || 0;
+					participantPrice = cnbPrice > 0 ? cnbPrice : basePrice;
+					category = 'CNB (Child No Bed)';
+					percentage = cnbPrice > 0 ? `RM ${formatPrice(cnbPrice)}` : 'Harga Dewasa';
+				} else if (peserta.kategori === 'infant') {
+					// Infant - gunakan harga spesifik dari Supabase
+					const infantPrice = parseFloat(selectedUmrahDate.infant) || 0;
+					participantPrice = infantPrice > 0 ? infantPrice : basePrice;
+					category = 'Infant';
+					percentage = infantPrice > 0 ? `RM ${formatPrice(infantPrice)}` : 'Harga Dewasa';
+				} else {
+					participantPrice = basePrice;
+					category = 'Dewasa';
+					percentage = 'Harga Bilik';
+				}
+
+				breakdown.participants.push({
+					name: `Peserta ${peserta.id}`,
+					category: category,
+					price: participantPrice,
+					percentage: percentage
+				});
+
+				breakdown.totalPrice += participantPrice;
+			});
+		}
+
+		return breakdown;
+	}
+
 	// Recompute dynamic options when selectedTarikhUmrah changes
 	$effect(() => {
 		if (!selectedTarikhUmrah) {
@@ -642,19 +1013,7 @@
 		return [...available, ...unavailable];
 	}
 	
-	// Debug destinations data
-	$effect(() => {
-		console.log('=== DESTINATIONS DATA DEBUG ===');
-		console.log('destinations:', destinations);
-		console.log('destinations length:', destinations?.length || 0);
-		console.log('outboundDates:', outboundDates);
-		console.log('outboundDates length:', outboundDates?.length || 0);
-		console.log('showDestinationSection:', showDestinationSection);
-		
-		const availability = getDestinationAvailability();
-		console.log('Destination availability:', availability);
-		console.log('================================');
-	});
+
 	
 	// State untuk filtered dates
 	let filteredOutboundDates = $state([]);
@@ -676,36 +1035,26 @@
 	
 	// Effect untuk mengontrol visibility berdasarkan pilihan paket
 	$effect(() => {
-		console.log('=== PACKAGE SELECTION DEBUG ===');
-		console.log('selectedPackageType:', selectedPackageType);
-		console.log('selectedPackageType type:', typeof selectedPackageType);
-		
 		if (selectedPackageType) {
 			// Cek apakah paket yang dipilih adalah pelancongan atau umrah
 			const selectedPackage = packageTypes.find(p => String(p.id) === String(selectedPackageType));
-			console.log('Selected Package Found:', selectedPackage);
-			console.log('All Package Types:', packageTypes);
 			
 			if (selectedPackage) {
 				const packageName = selectedPackage.name.toLowerCase();
-				console.log('Package name:', packageName);
 				
 				if (packageName.includes('pelancongan') || packageName.includes('outbound')) {
-					console.log('Setting showDestinationSection = true');
 					showDestinationSection = true;
 					showUmrahSeasonSection = false;
 					showUmrahCategorySection = false;
 					showAirlineSection = false;
 					showUmrahDateSection = false;
 				} else if (packageName.includes('umrah')) {
-					console.log('Setting showUmrahSeasonSection = true');
 					showDestinationSection = false;
 					showUmrahSeasonSection = true;
 					showUmrahCategorySection = false;
 					showAirlineSection = false;
 					showUmrahDateSection = false;
 				} else {
-					console.log('Other package type, hiding all sections');
 					// Paket lain (jika ada)
 					showDestinationSection = false;
 					showUmrahSeasonSection = false;
@@ -715,7 +1064,6 @@
 				}
 			}
 		} else {
-			console.log('No package selected, hiding all sections');
 			showDestinationSection = false;
 			showDateSection = false;
 			showUmrahSeasonSection = false;
@@ -729,11 +1077,6 @@
 			selectedAirline = 'null'; // Reset ke 'null' untuk konsistensi
 			selectedTarikhUmrah = '';
 		}
-		
-		console.log('Final state:');
-		console.log('- showDestinationSection:', showDestinationSection);
-		console.log('- showUmrahSeasonSection:', showUmrahSeasonSection);
-		console.log('================================');
 	});
 
 	// Effect untuk mengontrol visibility kategori umrah berdasarkan pilihan musim
@@ -749,26 +1092,29 @@
 	// Computed property untuk menentukan apakah airline required
 	let isAirlineRequired = $derived(() => {
 		if (!selectedKategoriUmrah) return false;
+		
 		const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
-		// Jika kategori PELAYARAN atau UMRAH + PELAYARAN, airline tidak required (akan diisi null)
-		return selectedCategory && selectedCategory.name !== 'PELAYARAN' && selectedCategory.name !== 'UMRAH + PELAYARAN';
+		// Hanya kategori "Pelayaran" murni yang tidak memerlukan airline
+		// "Umrah + Pelayaran" tetap memerlukan airline karena ada komponen umrah
+		return selectedCategory && selectedCategory.name !== 'Pelayaran';
 	});
 
 	// Effect untuk mengontrol visibility airline berdasarkan pilihan kategori umrah
 	$effect(() => {
 		if (selectedKategoriUmrah && showUmrahCategorySection) {
-			// Cek apakah kategori yang dipilih adalah cruise murni (PELAYARAN saja) atau UMRAH + PELAYARAN
+			// Cek apakah kategori yang dipilih adalah cruise murni (Pelayaran saja)
 			const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
-			const isPureCruisePackage = selectedCategory && selectedCategory.name === 'PELAYARAN';
-			const isUmrahPlusCruisePackage = selectedCategory && selectedCategory.name === 'UMRAH + PELAYARAN';
+			const isPureCruisePackage = selectedCategory && selectedCategory.name === 'Pelayaran';
 			
-			if (isPureCruisePackage || isUmrahPlusCruisePackage) {
-				// Untuk paket PELAYARAN murni dan UMRAH + PELAYARAN, langsung tampilkan section tarikh umrah tanpa perlu memilih penerbangan
+
+			
+			if (isPureCruisePackage) {
+				// Untuk paket Pelayaran murni, langsung tampilkan section tarikh umrah tanpa perlu memilih penerbangan
 				showAirlineSection = false;
 				showUmrahDateSection = true;
 				selectedAirline = 'null'; // Set airline ke 'null' untuk paket cruise
 			} else {
-				// Untuk paket umrah biasa, tetap tampilkan section penerbangan
+				// Untuk paket lain termasuk Umrah + Pelayaran, tetap tampilkan section penerbangan
 				showAirlineSection = true;
 				showUmrahDateSection = false;
 				selectedTarikhUmrah = '';
@@ -783,16 +1129,15 @@
 
 	// Effect untuk mengontrol visibility tarikh umrah berdasarkan pilihan airline atau kategori
 	$effect(() => {
-		// Cek apakah kategori yang dipilih adalah cruise murni (PELAYARAN saja) atau UMRAH + PELAYARAN
+		// Cek apakah kategori yang dipilih adalah cruise murni (Pelayaran saja)
 		const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
-		const isPureCruisePackage = selectedCategory && selectedCategory.name === 'PELAYARAN';
-		const isUmrahPlusCruisePackage = selectedCategory && selectedCategory.name === 'UMRAH + PELAYARAN';
+		const isPureCruisePackage = selectedCategory && selectedCategory.name === 'Pelayaran';
 		
-		if (isPureCruisePackage || isUmrahPlusCruisePackage) {
-			// Untuk paket PELAYARAN murni dan UMRAH + PELAYARAN, tarikh umrah langsung ditampilkan
+		if (isPureCruisePackage) {
+			// Untuk paket Pelayaran murni, tarikh umrah langsung ditampilkan
 			showUmrahDateSection = true;
 		} else if (selectedAirline && selectedAirline !== 'null' && showAirlineSection) {
-			// Untuk paket lain, tarikh umrah ditampilkan setelah memilih airline
+			// Untuk paket lain termasuk Umrah + Pelayaran, tarikh umrah ditampilkan setelah memilih airline
 			showUmrahDateSection = true;
 		} else {
 			showUmrahDateSection = false;
@@ -816,6 +1161,43 @@
 		}
 	});
 	
+	// Effect untuk update opsi bilik pelancongan berdasarkan destinasi dan tarikh yang dipilih
+	$effect(() => {
+		if (!selectedDestinasi || !selectedTarikh) {
+			dynamicPelanconganRoomOptions = [];
+			selectedPelanconganRoomType = '';
+			return;
+		}
+		
+		const options = buildPelanconganRoomOptions(selectedDestinasi, selectedTarikh);
+		dynamicPelanconganRoomOptions = options;
+		
+		// Reset pilihan bilik jika opsi yang dipilih tidak tersedia lagi
+		if (selectedPelanconganRoomType && !options.find(opt => opt.value === selectedPelanconganRoomType && !opt.disabled)) {
+			selectedPelanconganRoomType = '';
+		}
+	});
+
+	// Effect untuk menghitung total harga pelancongan secara otomatis
+	$effect(() => {
+		if (showDestinationSection && selectedPelanconganRoomType && selectedBilangan !== '') {
+			const calculatedPrice = calculatePelanconganTotalPrice();
+			totalHargaPelancongan = calculatedPrice;
+		} else {
+			totalHargaPelancongan = 0;
+		}
+	});
+
+	// Effect untuk menghitung total harga umrah secara otomatis
+	$effect(() => {
+		if (showUmrahDateSection && selectedRoomType && selectedBilangan !== '') {
+			const calculatedPrice = calculateUmrahTotalPrice();
+			totalHargaUmrah = calculatedPrice;
+		} else {
+			totalHargaUmrah = 0;
+		}
+	});
+	
 	// Effect untuk filter tarikh pelancongan berdasarkan destinasi yang dipilih
 	$effect(() => {
 		if (!selectedDestinasi) {
@@ -823,18 +1205,12 @@
 			return;
 		}
 		
-		// Debug: log data untuk troubleshooting
-		console.log('Selected Destinasi:', selectedDestinasi);
-		console.log('All Pelancongan Dates:', outboundDates);
-		
 		const filtered = outboundDates.filter((date) => {
 			// Pastikan destination_id ada dan cocok dengan destinasi yang dipilih
 			const matches = date.destination_id === selectedDestinasi;
-			console.log(`Date ${date.id}: destination_id=${date.destination_id}, selected=${selectedDestinasi}, matches=${matches}`);
 			return matches;
 		});
 		
-		console.log('Filtered Dates:', filtered);
 		filteredOutboundDates = filtered;
 	});
 
@@ -845,20 +1221,21 @@
 			return;
 		}
 
-		// Cek apakah kategori yang dipilih adalah cruise murni (PELAYARAN saja)
+		// Cek apakah kategori yang dipilih adalah cruise murni (Pelayaran saja)
 		const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
-		const isPureCruisePackage = selectedCategory && selectedCategory.name === 'PELAYARAN';
-		const isUmrahPlusCruisePackage = selectedCategory && selectedCategory.name === 'UMRAH + PELAYARAN';
+		const isPureCruisePackage = selectedCategory && selectedCategory.name === 'Pelayaran';
+
+
 
 		let filtered;
-		if (isPureCruisePackage || isUmrahPlusCruisePackage) {
-			// Untuk paket PELAYARAN murni dan UMRAH + PELAYARAN, filter hanya berdasarkan musim dan kategori (tanpa airline)
+		if (isPureCruisePackage) {
+			// Untuk paket Pelayaran murni, filter hanya berdasarkan musim dan kategori (tanpa airline)
 			filtered = umrahDates.filter(date => {
 				return String(date.umrah_season_id) === String(selectedMusimUmrah) && 
 					   String(date.umrah_category_id) === String(selectedKategoriUmrah);
 			});
 		} else {
-			// Untuk paket umrah biasa, filter berdasarkan musim, kategori, dan airline
+			// Untuk paket lain termasuk Umrah + Pelayaran, filter berdasarkan musim, kategori, dan airline
 			if (!selectedAirline || selectedAirline === 'null') {
 				filteredUmrahDates = [];
 				return;
@@ -1248,6 +1625,9 @@
 			if (!selectedTarikh) {
 				errors.push('Sila pilih tarikh pelancongan anda');
 			}
+			if (!selectedPelanconganRoomType) {
+				errors.push('Sila pilih jenis bilik pelancongan anda');
+			}
 		} else if (showUmrahSeasonSection) {
 			// Validasi untuk pakej umrah
 			if (!selectedMusimUmrah) {
@@ -1399,6 +1779,8 @@
 			kategori: '' // Single choice: 'cwb', 'infant', 'cnb', atau kosong
 		}));
 	}
+
+
 </script>
 
 <section class="max-w-[1000px] mx-auto px-4 sm:px-6 box-border pt-4 sm:pt-10">
@@ -1440,6 +1822,7 @@
 					selectedTarikhUmrah = '';
 					perluPartnerBilik = false;
 					selectedRoomType = '';
+					selectedPelanconganRoomType = '';
 					selectedCawangan = '';
 					selectedKonsultan = '';
 					selectedPackageType = '';
@@ -1459,6 +1842,7 @@
 					isTarikhUmrahOpen = false;
 					isTarikhOpen = false;
 					isPilihBilikOpen = false;
+					isPilihBilikPelanconganOpen = false;
 					isBilanganOpen = false;
 					isNegeriOpen = false;
 					isBandarOpen = false;
@@ -1483,6 +1867,7 @@
 					
 					// Reset dynamic options
 					dynamicRoomOptions = [];
+					dynamicPelanconganRoomOptions = [];
 					dynamicAirlineOptions = [];
 					dynamicCategoryOptions = [];
 					dynamicDestinationOptions = [];
@@ -1500,53 +1885,38 @@
 				class="grid grid-cols-2 gap-y-3 gap-x-4 sm:gap-y-4 sm:gap-x-5 max-[720px]:grid-cols-1" 
 				method="POST" 
 				onsubmit={(e) => {
-					console.log('=== FORM ONSUBMIT TRIGGERED ===');
-					console.log('isSubmitting before onsubmit:', isSubmitting);
-					
 					// Clear previous errors
 					clearErrors();
 					
 					// Set loading state IMMEDIATELY when form is submitted
 					isSubmitting = true;
-					console.log('isSubmitting set to true in onsubmit:', isSubmitting);
 					
 					// Validasi form sebelum submit
 					const errors = validateForm();
-					console.log('Validation errors in onsubmit:', errors);
 					
 					if (errors.length > 0) {
-						console.log('Validation failed in onsubmit, preventing submission');
 						showValidationErrors(errors);
 						isSubmitting = false;
-						console.log('isSubmitting reset to false after validation error in onsubmit:', isSubmitting);
 						e.preventDefault();
 						return false;
 					}
 					
 					// Prevent form submission if there's a postcode error or incomplete postcode
 					if (poskodError || poskodValue.length !== 5) {
-						console.log('Postcode validation failed in onsubmit, preventing submission');
 						if (poskodValue.length !== 5) {
 							poskodError = 'Sila masukkan poskod 5 digit yang lengkap';
 						}
 						isSubmitting = false;
-						console.log('isSubmitting reset to false after postcode error in onsubmit:', isSubmitting);
 						e.preventDefault();
 						return false;
 					}
 					
-					console.log('Form validation passed in onsubmit, allowing submission...');
 					// Don't prevent default - let form submit normally
 				}}
 				use:enhance={() => {
 					return async ({ result, cancel }) => {
-						console.log('=== FORM ENHANCEMENT CALLBACK ===');
-						console.log('isSubmitting in enhancement callback:', isSubmitting);
-						
 						if (result.type === 'success') {
-							console.log('Form submission successful');
 							isSubmitting = false;
-							console.log('isSubmitting reset to false after success:', isSubmitting);
 							showSuccess = true;
 							showError = false;
 						
@@ -1581,6 +1951,7 @@
 							selectedTarikhUmrah = '';
 							perluPartnerBilik = false;
 							selectedRoomType = '';
+							selectedPelanconganRoomType = '';
 							selectedCawangan = '';
 							selectedKonsultan = '';
 							selectedPackageType = '';
@@ -1600,6 +1971,7 @@
 							isTarikhUmrahOpen = false;
 							isTarikhOpen = false;
 							isPilihBilikOpen = false;
+							isPilihBilikPelanconganOpen = false;
 							isBilanganOpen = false;
 							isNegeriOpen = false;
 							isBandarOpen = false;
@@ -1624,6 +1996,7 @@
 							
 							// Reset dynamic options
 							dynamicRoomOptions = [];
+							dynamicPelanconganRoomOptions = [];
 							dynamicAirlineOptions = [];
 							dynamicCategoryOptions = [];
 							dynamicDestinationOptions = [];
@@ -2454,12 +2827,15 @@
 							}}
 							onblur={() => setTimeout(() => isTarikhOpen = false, 200)}
 						>
-							<span class={selectedTarikh ? 'text-gray-900' : 'text-gray-500'}>
-								{selectedTarikh ? (() => {
-									const date = filteredOutboundDates.find(d => String(d.id) === String(selectedTarikh));
-									return date ? `${formatDate(date.start_date)} - ${formatDate(date.end_date)} (RM ${formatPrice(date.price)})` : 'Pilih Tarikh';
-								})() : 'Pilih Tarikh'}
-							</span>
+											<span class={selectedTarikh ? 'text-gray-900' : 'text-gray-500'}>
+					{selectedTarikh ? (() => {
+						const date = filteredOutboundDates.find(d => String(d.id) === String(selectedTarikh));
+						if (date) {
+							return `${formatDate(date.start_date)} - ${formatDate(date.end_date)}`;
+						}
+						return 'Pilih Tarikh';
+					})() : 'Pilih Tarikh'}
+				</span>
 							<svg 
 								class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isTarikhOpen ? 'rotate-180' : ''} ${!selectedDestinasi || filteredOutboundDates.length === 0 ? 'opacity-50' : ''}`}
 								fill="none" 
@@ -2474,15 +2850,15 @@
 							<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 								<ul class="py-1">
 									{#each filteredOutboundDates as date}
-										<li 
-											class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedTarikh === String(date.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
-											onclick={() => {
-												selectedTarikh = String(date.id);
-												isTarikhOpen = false;
-											}}
-										>
-											{formatDate(date.start_date)} - {formatDate(date.end_date)} (RM {formatPrice(date.price)})
-										</li>
+																										<li
+								class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedTarikh === String(date.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
+								onclick={() => {
+									selectedTarikh = String(date.id);
+									isTarikhOpen = false;
+								}}
+							>
+								{formatDate(date.start_date)} - {formatDate(date.end_date)}
+							</li>
 									{/each}
 								</ul>
 							</div>
@@ -2490,9 +2866,72 @@
 					</div>
 					<input type="hidden" name="tarikh_berlepas" value={selectedTarikh} required />
 				</div>
+				
+				<!-- Pilih Bilik untuk Pelancongan -->
+				{#if selectedTarikh}
+					<div class="flex flex-col gap-2">
+						<label class="text-[13px] font-semibold text-gray-700" for="pilih_bilik_pelancongan">Pilih Bilik<span class="text-red-500 ml-1">*</span></label>
+						<div class="relative">
+							<div 
+								class={`h-11 px-3 pr-5 rounded-[10px] border border-[#e5e7eb] text-[14px] outline-none flex items-center justify-between focus-within:border-[#942392] focus-within:[box-shadow:0_0_0_4px_rgba(148,35,146,0.18)] ${(dynamicPelanconganRoomOptions?.length || 0) === 0 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'}`}
+								onclick={() => {
+									if ((dynamicPelanconganRoomOptions?.length || 0) > 0) {
+										isPilihBilikPelanconganOpen = !isPilihBilikPelanconganOpen;
+									}
+								}}
+								onblur={() => setTimeout(() => isPilihBilikPelanconganOpen = false, 200)}
+							>
+								<span class={selectedPelanconganRoomType ? 'text-gray-900' : 'text-gray-500'}>
+									{selectedPelanconganRoomType ? (() => {
+										const roomOption = dynamicPelanconganRoomOptions.find(opt => opt.value === selectedPelanconganRoomType);
+										return roomOption ? roomOption.label : 'Pilih Jenis Bilik';
+									})() : 'Pilih Jenis Bilik'}
+								</span>
+								<svg 
+									class={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isPilihBilikPelanconganOpen ? 'rotate-180' : ''} ${(dynamicPelanconganRoomOptions?.length || 0) === 0 ? 'opacity-50' : ''}`}
+									fill="none" 
+									stroke="currentColor" 
+									viewBox="0 0 24 24"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+								</svg>
+							</div>
+							
+							{#if isPilihBilikPelanconganOpen && (dynamicPelanconganRoomOptions?.length || 0) > 0}
+								<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
+									<ul class="py-1">
+										{#each dynamicPelanconganRoomOptions as opt}
+											{#if opt.isSeparator}
+												<li class="px-3 py-1">
+													<div class="border-t border-gray-300 my-1"></div>
+												</li>
+											{:else}
+												<li 
+													class={`px-3 py-2 text-[14px] ${opt.disabled ? 'text-gray-400 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50 text-gray-700'} ${selectedPelanconganRoomType === opt.value ? 'bg-purple-100 text-purple-700' : ''}`}
+													onclick={() => {
+														if (!opt.disabled) {
+															selectedPelanconganRoomType = opt.value;
+															isPilihBilikPelanconganOpen = false;
+														}
+													}}
+												>
+													{opt.label}
+												</li>
+											{/if}
+										{/each}
+									</ul>
+								</div>
+							{/if}
+						</div>
+						<input type="hidden" name="pilih_bilik_pelancongan" value={selectedPelanconganRoomType} required />
+					</div>
+
+
+				{/if}
 			{/if}
 
 			{#if selectedTarikh || selectedTarikhUmrah}
+
 				{#if selectedTarikhUmrah}
 					<div class="flex flex-col gap-2">
 						<label class="text-[13px] font-semibold text-gray-700" for="pilih_bilik">Pilih Bilik<span class="text-red-500 ml-1">*</span></label>
@@ -2694,38 +3133,50 @@
 						</div>
 						<!-- Kategori peserta (CWB, CNB, Infant) -->
 						<div class="col-span-full mt-4">
-							<label class="text-[13px] font-semibold text-gray-700 mb-3 block">Jika Kategori Kanak-Kanak</label>
-							<div class="flex flex-wrap gap-4">
-								<label class="flex items-center gap-2 cursor-pointer">
-									<input 
-										type="radio" 
-										name="peserta_kategori_{peserta.id}" 
-										value="cwb" 
-										bind:group={peserta.kategori}
-										class="w-4 h-4 text-[#942392] focus:ring-[#942392] border-gray-300"
-									/>
-									<span class="text-sm text-gray-700">CWB</span>
-								</label>
-								<label class="flex items-center gap-2 cursor-pointer">
-									<input 
-										type="radio" 
-										name="peserta_kategori_{peserta.id}" 
-										value="cnb" 
-										bind:group={peserta.kategori}
-										class="w-4 h-4 text-[#942392] focus:ring-[#942392] border-gray-300"
-									/>
-									<span class="text-sm text-gray-700">CNB</span>
-								</label>
-								<label class="flex items-center gap-2 cursor-pointer">
-									<input 
-										type="radio" 
-										name="peserta_kategori_{peserta.id}" 
-										value="infant" 
-										bind:group={peserta.kategori}
-										class="w-4 h-4 text-[#942392] focus:ring-[#942392] border-gray-300"
-									/>
-									<span class="text-sm text-gray-700">Infant</span>
-								</label>
+							<label class="text-[13px] font-semibold text-gray-700 mb-3 block">Kategori Peserta (Pilih jika kanak-kanak)</label>
+							<div class="bg-[#f8fafc] border border-[#e2e8f0] rounded-lg p-3 mb-3">
+								<div class="text-xs text-gray-600 mb-2">
+									<strong>Info Harga:</strong><br/>
+									• <strong>CWB (Child With Bed):</strong> {showUmrahDateSection ? 'RM 500 kurang dari harga bilik yang dipilih' : 'Harga khusus dari database'}<br/>
+									• <strong>CNB (Child No Bed):</strong> Harga khusus dari database<br/>
+									• <strong>Infant:</strong> Harga khusus dari database<br/>
+									• Jika tidak memilih kategori, peserta akan dikenakan harga dewasa penuh
+								</div>
+								<div class="flex flex-wrap gap-4">
+									<label class="flex items-center gap-2 cursor-pointer">
+										<input 
+											type="radio" 
+											name="peserta_kategori_{peserta.id}" 
+											value="cwb" 
+											bind:group={peserta.kategori}
+											class="w-4 h-4 text-[#942392] focus:ring-[#942392] border-gray-300"
+										/>
+										<span class="text-sm text-gray-700">CWB (Child With Bed)</span>
+									</label>
+									<label class="flex items-center gap-2 cursor-pointer">
+										<input 
+											type="radio" 
+											name="peserta_kategori_{peserta.id}" 
+											value="cnb" 
+											bind:group={peserta.kategori}
+											class="w-4 h-4 text-[#942392] focus:ring-[#942392] border-gray-300"
+										/>
+										<span class="text-sm text-gray-700">CNB (Child No Bed)</span>
+									</label>
+									<label class="flex items-center gap-2 cursor-pointer">
+										<input 
+											type="radio" 
+											name="peserta_kategori_{peserta.id}" 
+											value="infant" 
+											bind:group={peserta.kategori}
+											class="w-4 h-4 text-[#942392] focus:ring-[#942392] border-gray-300"
+										/>
+										<span class="text-sm text-gray-700">Infant</span>
+									</label>
+								</div>
+								<div class="text-xs text-gray-500 mt-2 italic">
+									* Jika tidak memilih kategori, peserta akan dikenakan harga dewasa penuh
+								</div>
 							</div>
 						</div>
 					</div>
@@ -2744,6 +3195,65 @@
 					{/if}
 				</div>
 			{/if}
+
+
+
+			<!-- Tampilan Total Harga -->
+			{#if showDestinationSection && totalHargaPelancongan > 0}
+				<div class="col-span-full bg-[#f0f9ff] border border-[#0ea5e9] rounded-[10px] p-4 mb-4">
+					<div class="flex items-center justify-between">
+						<div>
+							<h4 class="text-[16px] font-semibold text-[#0369a1] m-0">Total Harga Pelancongan</h4>
+							<p class="text-sm text-[#0c4a6e] m-0 mt-1">Jumlah Peserta: {selectedBilangan ? parseInt(selectedBilangan) + 1 : 1}</p>
+						</div>
+						<div class="text-right">
+							<div class="text-[24px] font-bold text-[#0369a1]">RM {formatPrice(totalHargaPelancongan)}</div>
+							<div class="text-xs text-[#0c4a6e] mt-1">Termasuk semua peserta</div>
+						</div>
+					</div>
+				</div>
+			{/if}
+
+			{#if showUmrahDateSection && totalHargaUmrah > 0}
+				<div class="col-span-full bg-[#f0fdf4] border border-[#22c55e] rounded-[10px] p-4 mb-4">
+					<div class="flex items-center justify-between">
+						<div>
+							<h4 class="text-[16px] font-semibold text-[#15803d] m-0">Total Harga Umrah</h4>
+							<p class="text-sm text-[#166534] m-0 mt-1">Jumlah Peserta: {selectedBilangan ? parseInt(selectedBilangan) + 1 : 1}</p>
+							{#if selectedRoomType && (selectedRoomType.includes('deck') || selectedRoomType.includes('low_deck') || selectedRoomType.includes('high_deck'))}
+								{@const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah))}
+								{#if selectedCategory && (selectedCategory.name === 'Pelayaran' || selectedCategory.name === 'Umrah + Pelayaran')}
+									<p class="text-sm text-[#166534] m-0 mt-1">
+										<strong>Kategori Paket:</strong> {selectedCategory.name}
+									</p>
+									<p class="text-sm text-[#166534] m-0 mt-1">
+										<strong>Deck & Tipe Kamar:</strong> {selectedRoomType.replace(/_/g, ' ').toUpperCase()}
+									</p>
+									<p class="text-sm text-[#166534] m-0 mt-1">
+										<strong>Harga per Orang:</strong> RM {formatPrice(getUmrahPriceBreakdown()?.basePrice || 0)}
+									</p>
+								{/if}
+							{/if}
+						</div>
+						<div class="text-right">
+							<div class="text-[24px] font-bold text-[#15803d]">RM {formatPrice(totalHargaUmrah)}</div>
+							<div class="text-xs text-[#166534] mt-1">Termasuk semua peserta</div>
+						</div>
+					</div>
+					
+
+				</div>
+			{/if}
+
+
+
+			<!-- Hidden inputs untuk total harga -->
+			<!-- Always include hidden inputs to ensure they're in the DOM -->
+			<input type="hidden" name="total_harga_pelancongan" value={showDestinationSection && totalHargaPelancongan > 0 ? totalHargaPelancongan : ''} />
+			<input type="hidden" name="jumlah_peserta_pelancongan" value={showDestinationSection && totalHargaPelancongan > 0 ? (selectedBilangan ? parseInt(selectedBilangan) + 1 : 1) : ''} />
+			
+			<input type="hidden" name="total_harga_umrah" value={showUmrahDateSection && totalHargaUmrah > 0 ? totalHargaUmrah : ''} />
+			<input type="hidden" name="jumlah_peserta_umrah" value={showUmrahDateSection && totalHargaUmrah > 0 ? (selectedBilangan ? parseInt(selectedBilangan) + 1 : 1) : ''} />
 
 			<div class="col-span-full mt-3 sm:mt-2">
 				<button 

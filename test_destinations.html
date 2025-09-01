@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Destinations Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .destination { margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .available { background-color: #d4edda; border-color: #c3e6cb; }
+        .unavailable { background-color: #f8d7da; border-color: #f5c6cb; }
+        .price { font-weight: bold; color: #28a745; }
+        .no-price { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <h1>Test Destinations Data</h1>
+    <div id="destinations"></div>
+
+    <script>
+        // Simulasi data dari Supabase
+        const destinations = [
+            { id: "ab0b75db-ea75-4a5e-8ba9-714d1ffbc562", name: "ACHEH & SABANG" },
+            { id: "36d7bc84-4609-4818-aea4-1bd2b86d4aa2", name: "BALKAN 5 NEGARA" },
+            { id: "57899580-1788-4bc1-b258-7f955d09a1ab", name: "DALAT - MUINE - HCM" },
+            { id: "711fbb82-b05c-41b3-bd24-2cdfba144877", name: "DANANG" },
+            { id: "2053e975-7b0f-4bff-bd73-6ca2a1c4ba4b", name: "HANOI HALONG SAPA" },
+            { id: "9bfe6ae5-b3dc-4140-ad00-085bb86b0aa2", name: "HOKKAIDO" },
+            { id: "5a32039b-e3f4-4f56-bc1f-ec961f701bce", name: "JAKARTA BANDUNG" },
+            { id: "90dcb30e-4c6c-4049-8cf3-b3eab7e5e86b", name: "JOGJAKARTA" },
+            { id: "e76a8ffb-5f83-4cc6-a8df-0f86c3763bb9", name: "KOREA SELATAN" },
+            { id: "051f2d15-8db8-4f1a-9b1e-f9fc91f86334", name: "MEDAN" }
+        ];
+
+        const outboundDates = [
+            { id: "85583b6b-b081-4b40-9955-d59fdd5626d4", start_date: "2025-09-14", end_date: "2025-09-19", destination_id: "9bfe6ae5-b3dc-4140-ad00-085bb86b0aa2", double: "8290", triple: "9290", single: "9490", cwb: "8090", cnb: "8090", infant: "1200" },
+            { id: "3293de0e-d8be-49be-b61c-497a1978c684", start_date: "2025-10-17", end_date: "2025-10-22", destination_id: "57899580-1788-4bc1-b258-7f955d09a1ab", double: "3249", triple: "-", single: "3849", cwb: "3049", cnb: "2849", infant: "600" },
+            { id: "38293b02-762b-4676-a7ef-463f3e82c7ea", start_date: "2025-10-17", end_date: "2025-10-22", destination_id: "e76a8ffb-5f83-4cc6-a8df-0f86c3763bb9", double: "4850", triple: "-", single: "5850", cwb: "4650", cnb: "-", infant: "600" },
+            { id: "f2c77dfc-2bb6-4ae1-8d6e-3d6aaf6d8563", start_date: "2025-10-18", end_date: "2025-10-22", destination_id: "ab0b75db-ea75-4a5e-8ba9-714d1ffbc562", double: "2290", triple: "2290", single: "2690", cwb: "2090", cnb: "1890", infant: "600" }
+        ];
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const day = date.getDate();
+            const month = date.toLocaleDateString('en-US', { month: 'short' });
+            const year = date.getFullYear();
+            return `${day} ${month} ${year}`;
+        }
+
+        function formatPrice(priceString) {
+            if (!priceString || priceString === '-' || priceString === '') return 'Tidak Tersedia';
+            const price = parseFloat(priceString);
+            if (isNaN(price)) return priceString;
+            return `RM ${price.toLocaleString('ms-MY')}`;
+        }
+
+        function getDestinationAvailability() {
+            const availableDestinations = new Set();
+            outboundDates.forEach(date => {
+                if (date.destination_id) {
+                    availableDestinations.add(String(date.destination_id));
+                }
+            });
+
+            return destinations.map(destination => {
+                const isAvailable = availableDestinations.has(String(destination.id));
+                return {
+                    ...destination,
+                    isAvailable
+                };
+            });
+        }
+
+        function displayDestinations() {
+            const container = document.getElementById('destinations');
+            const availableDestinations = getDestinationAvailability();
+
+            container.innerHTML = availableDestinations.map(destination => {
+                const className = destination.isAvailable ? 'destination available' : 'destination unavailable';
+                const status = destination.isAvailable ? 'Tersedia' : 'Tidak Tersedia';
+                
+                // Cari tarikh yang tersedia untuk destinasi ini
+                const availableDates = outboundDates.filter(date => 
+                    String(date.destination_id) === String(destination.id)
+                );
+
+                let datesHtml = '';
+                if (availableDates.length > 0) {
+                    datesHtml = '<h4>Tarikh Tersedia:</h4>';
+                    availableDates.forEach(date => {
+                        const price = formatPrice(date.double || date.triple || date.single);
+                        datesHtml += `<div class="price">${formatDate(date.start_date)} - ${formatDate(date.end_date)}: ${price}</div>`;
+                    });
+                }
+
+                return `
+                    <div class="${className}">
+                        <h3>${destination.name}</h3>
+                        <p><strong>Status:</strong> ${status}</p>
+                        ${datesHtml}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Tampilkan data
+        displayDestinations();
+    </script>
+</body>
+</html>
