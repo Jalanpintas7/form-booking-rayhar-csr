@@ -200,10 +200,15 @@ function parseMalaysianNRIC(nric) {
 async function sendToN8n(formData, bookingId, pesertaData) {
 	try {
 		// Ambil data dari formData
+		const gelaran = formData.get('gelaran');
 		const nama = formData.get('nama');
+		const nama_lengkap = `${gelaran || ''} ${nama || ''}`.trim(); // Gabungkan gelaran dan nama
+		const nokp = formData.get('nokp');
+		const telefon = formData.get('telefon');
 		const alamat = formData.get('alamat');
 		const bandar = formData.get('bandar');
 		const negeri = formData.get('negeri');
+		const poskod = formData.get('poskod');
 		const uuid = bookingId; // Gunakan booking ID sebagai UUID
 		const date = new Date().toISOString().split('T')[0]; // Tanggal hari ini
 		
@@ -231,15 +236,138 @@ async function sendToN8n(formData, bookingId, pesertaData) {
 			}
 		}
 
+		// Parse tanggal lahir dari NRIC
+		let tanggal_lahir = '';
+		let umur = '';
+		if (nokp && nokp.length >= 12) {
+			const yy = nokp.slice(0, 2);
+			const mm = nokp.slice(2, 4);
+			const dd = nokp.slice(4, 6);
+			const fullYear = parseInt(yy) < 50 ? '20' + yy : '19' + yy;
+			tanggal_lahir = `${fullYear}-${mm}-${dd}`;
+			
+			// Hitung umur
+			const birthDate = new Date(tanggal_lahir);
+			const today = new Date();
+			umur = Math.floor((today - birthDate) / (365.25 * 24 * 60 * 60 * 1000)).toString();
+		}
+
+		// Ambil data pakej dan tarikh untuk kode
+		let kod_pakej = '';
+		let tarikh_jangkaan = '';
+		let pilihan_penerbangan = '';
+		let kod_tempa = '';
+		
+		// Fungsi untuk format tanggal ke bahasa Malaysia
+		function formatDateToMalaysian(dateString) {
+			if (!dateString) return '';
+			
+			const date = new Date(dateString);
+			const months = [
+				'Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun',
+				'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'
+			];
+			
+			const day = date.getDate();
+			const month = months[date.getMonth()];
+			const year = date.getFullYear();
+			
+			return `${day} ${month} ${year}`;
+		}
+		
+		if (tarikh_berlepas) {
+			// Untuk pakej pelancongan
+			const { data: outboundDateData } = await supabase
+				.from('outbound_dates')
+				.select('start_date, end_date, destinations!inner(name)')
+				.eq('id', tarikh_berlepas)
+				.single();
+			
+			if (outboundDateData) {
+				kod_pakej = outboundDateData.destinations?.name || '';
+				const startDate = formatDateToMalaysian(outboundDateData.start_date);
+				const endDate = formatDateToMalaysian(outboundDateData.end_date);
+				tarikh_jangkaan = `${startDate} - ${endDate}`;
+			}
+		} else if (tarikh_umrah) {
+			// Untuk pakej umrah
+			const { data: umrahDateData } = await supabase
+				.from('umrah_dates')
+				.select('start_date, end_date, airlines!inner(name)')
+				.eq('id', tarikh_umrah)
+				.single();
+			
+			if (umrahDateData) {
+				kod_pakej = 'UMRAH';
+				const startDate = formatDateToMalaysian(umrahDateData.start_date);
+				const endDate = formatDateToMalaysian(umrahDateData.end_date);
+				tarikh_jangkaan = `${startDate} - ${endDate}`;
+				pilihan_penerbangan = umrahDateData.airlines?.name || '';
+			}
+		}
+
+		// Ambil data cawangan untuk kod tempa
+		const branch_id = formData.get('cawangan');
+		if (branch_id) {
+			const { data: branchData } = await supabase
+				.from('branches')
+				.select('name')
+				.eq('id', branch_id)
+				.single();
+			
+			if (branchData) {
+				kod_tempa = branchData.name || '';
+			}
+		}
+
+		// Siapkan data butir mahram
+		const butir_mahram = {};
+		for (let i = 1; i <= 11; i++) {
+			const nama_peserta = formData.get(`peserta_nama_${i}`);
+			const nokp_peserta = formData.get(`peserta_nokp_${i}`);
+			
+			// Selalu kirim semua 11 row, dengan string kosong jika tidak ada data
+			butir_mahram[`row_${i}`] = {
+				[`Bil${i}`]: nama_peserta ? i.toString() : '',
+				[`Nama${i}`]: nama_peserta || '',
+				[`no/kp${i}`]: nokp_peserta || ''
+			};
+		}
+
 		// Siapkan data sesuai format yang diminta
 		const n8nData = {
-			nama: nama || '',
-			alamat: alamat || '',
-			bandar: bandar || '',
-			negeri: negeri || '',
-			uuid: uuid || '',
-			date: date,
-			total: total.toString()
+			data: {
+				nama: nama_lengkap,
+				tanggal_lahir: tanggal_lahir,
+				no_kp: nokp || '',
+				Umur: umur,
+				"Alamat 1": alamat || '',
+				"Alamat 2": '',
+				Poskod: poskod || '',
+				Bandar: bandar || '',
+				Negeri: negeri || '',
+				"Tel (P)": telefon || '',
+				"Tel (R)": '',
+				"Kod Tempa": kod_tempa,
+				"Ruj Caw": '',
+				"Kod Pakej": kod_pakej,
+				"Tarikh Jangkaan": tarikh_jangkaan,
+				"2 bilik": pilih_bilik === 'double' ? true : '',
+				"3 bilik": pilih_bilik === 'triple' ? true : '',
+				"4 bilik": pilih_bilik === 'quad' ? true : '',
+				"5 bilik": pilih_bilik === 'quintuple' ? true : '',
+				"Pilihan Penerbangan": pilihan_penerbangan,
+				butir_mahram: butir_mahram
+			},
+			invoice: {
+				nama: nama_lengkap,
+				alamat: alamat || '',
+				bandar: bandar || '',
+				negeri: negeri || '',
+				uuid: uuid || '',
+				date: date,
+				total: total.toString()
+			}
 		};
 
 		// Log data yang akan dikirim ke N8n
@@ -247,8 +375,8 @@ async function sendToN8n(formData, bookingId, pesertaData) {
 		console.log('Data to be sent:', JSON.stringify(n8nData, null, 2));
 		console.log('========================');
 
-		// Kirim data ke N8n webhook dengan URL yang benar
-		const response = await fetch('https://n8n-ezaj8apw.runner.web.id/webhook/invoice-booking', {
+		// Kirim data ke N8n webhook dengan URL yang baru
+		const response = await fetch('https://n8n-ezaj8apw.runner.web.id/webhook/rayhar-invoice', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
