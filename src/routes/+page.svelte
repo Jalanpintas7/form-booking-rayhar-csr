@@ -3135,13 +3135,7 @@
 						<div class="col-span-full mt-4">
 							<label class="text-[13px] font-semibold text-gray-700 mb-3 block">Kategori Peserta (Pilih jika kanak-kanak)</label>
 							<div class="bg-[#f8fafc] border border-[#e2e8f0] rounded-lg p-3 mb-3">
-								<div class="text-xs text-gray-600 mb-2">
-									<strong>Info Harga:</strong><br/>
-									• <strong>CWB (Child With Bed):</strong> {showUmrahDateSection ? 'RM 500 kurang dari harga bilik yang dipilih' : 'Harga khusus dari database'}<br/>
-									• <strong>CNB (Child No Bed):</strong> Harga khusus dari database<br/>
-									• <strong>Infant:</strong> Harga khusus dari database<br/>
-									• Jika tidak memilih kategori, peserta akan dikenakan harga dewasa penuh
-								</div>
+
 								<div class="flex flex-wrap gap-4">
 									<label class="flex items-center gap-2 cursor-pointer">
 										<input 
@@ -3214,36 +3208,7 @@
 				</div>
 			{/if}
 
-			{#if showUmrahDateSection && totalHargaUmrah > 0}
-				<div class="col-span-full bg-[#f0fdf4] border border-[#22c55e] rounded-[10px] p-4 mb-4">
-					<div class="flex items-center justify-between">
-						<div>
-							<h4 class="text-[16px] font-semibold text-[#15803d] m-0">Total Harga Umrah</h4>
-							<p class="text-sm text-[#166534] m-0 mt-1">Jumlah Peserta: {selectedBilangan ? parseInt(selectedBilangan) + 1 : 1}</p>
-							{#if selectedRoomType && (selectedRoomType.includes('deck') || selectedRoomType.includes('low_deck') || selectedRoomType.includes('high_deck'))}
-								{@const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah))}
-								{#if selectedCategory && (selectedCategory.name === 'Pelayaran' || selectedCategory.name === 'Umrah + Pelayaran')}
-									<p class="text-sm text-[#166534] m-0 mt-1">
-										<strong>Kategori Paket:</strong> {selectedCategory.name}
-									</p>
-									<p class="text-sm text-[#166534] m-0 mt-1">
-										<strong>Deck & Tipe Kamar:</strong> {selectedRoomType.replace(/_/g, ' ').toUpperCase()}
-									</p>
-									<p class="text-sm text-[#166534] m-0 mt-1">
-										<strong>Harga per Orang:</strong> RM {formatPrice(getUmrahPriceBreakdown()?.basePrice || 0)}
-									</p>
-								{/if}
-							{/if}
-						</div>
-						<div class="text-right">
-							<div class="text-[24px] font-bold text-[#15803d]">RM {formatPrice(totalHargaUmrah)}</div>
-							<div class="text-xs text-[#166534] mt-1">Termasuk semua peserta</div>
-						</div>
-					</div>
-					
 
-				</div>
-			{/if}
 
 
 

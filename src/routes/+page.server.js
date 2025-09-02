@@ -257,24 +257,23 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 		// Ambil data dari formData
 		const gelaran = formData.get('gelaran');
 		const nama = formData.get('nama');
-		const nama_lengkap = `${gelaran || ''} ${nama || ''}`.trim(); // Gabungkan gelaran dan nama
+		const nama_lengkap = `${gelaran || ''} ${nama || ''}`.trim();
 		const nokp = formData.get('nokp');
 		const telefon = formData.get('telefon');
 		const alamat = formData.get('alamat');
 		const bandar = formData.get('bandar');
 		const negeri = formData.get('negeri');
 		const poskod = formData.get('poskod');
-		const uuid = bookingId; // Gunakan booking ID sebagai UUID
-		const date = new Date().toISOString().split('T')[0]; // Tanggal hari ini
+		const uuid = bookingId;
+		const date = new Date().toISOString().split('T')[0];
 		
 		// Ambil data yang diperlukan untuk payload
 		const tarikh_berlepas = formData.get('tarikh_berlepas');
 		const tarikh_umrah = formData.get('tarikh_umrah');
 		const pilih_bilik = formData.get('pilih_bilik');
 		const pilih_bilik_pelancongan = formData.get('pilih_bilik_pelancongan');
-		const bilangan = formData.get('bilangan');
 		
-		// Gunakan total_price yang sudah dihitung dan disimpan ke database
+		// Gunakan total_price yang sudah dihitung
 		let total = totalPrice || 0;
 
 		// Parse tanggal lahir dari NRIC
@@ -293,12 +292,11 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 			umur = Math.floor((today - birthDate) / (365.25 * 24 * 60 * 60 * 1000)).toString();
 		}
 
-		// Ambil data pakej dan tarikh untuk kode
+		// Ambil data pakej dan tarikh
 		let kod_pakej = '';
 		let tarikh_jangkaan = '';
 		let pilihan_penerbangan = '';
 		let kod_tempa = '';
-		let sales_uid = '';
 		
 		// Fungsi untuk format tanggal ke bahasa Malaysia
 		function formatDateToMalaysian(dateString) {
@@ -362,19 +360,12 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 			}
 		}
 
-		// Ambil data sales consultant untuk sales_uid
-		const consultant_id = formData.get('konsultan');
-		if (consultant_id) {
-			sales_uid = consultant_id; // Langsung gunakan ID dari sales consultant
-		}
-
-		// Siapkan data butir mahram
+		// Siapkan data butir mahram (10 row sesuai format yang diminta)
 		const butir_mahram = {};
-		for (let i = 1; i <= 11; i++) {
+		for (let i = 1; i <= 10; i++) {
 			const nama_peserta = formData.get(`peserta_nama_${i}`);
 			const nokp_peserta = formData.get(`peserta_nokp_${i}`);
 			
-			// Selalu kirim semua 11 row, dengan string kosong jika tidak ada data
 			butir_mahram[`row_${i}`] = {
 				[`Bil${i}`]: nama_peserta ? i.toString() : '',
 				[`Nama${i}`]: nama_peserta || '',
@@ -382,7 +373,7 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 			};
 		}
 
-		// Siapkan data sesuai format yang diminta
+		// Siapkan data sesuai format JSON yang diminta
 		const n8nData = {
 			data: {
 				nama: nama_lengkap,
@@ -404,9 +395,8 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 				"3 bilik": pilih_bilik === 'triple' ? true : '',
 				"4 bilik": pilih_bilik === 'quad' ? true : '',
 				"5 bilik": pilih_bilik === 'quintuple' ? true : '',
-				"Bilik Pelancongan": pilih_bilik_pelancongan || '',
+				"Bilik Pelancongan": tarikh_berlepas ? pilih_bilik_pelancongan || '' : '',
 				"Pilihan Penerbangan": pilihan_penerbangan,
-				"sales_uid": sales_uid,
 				butir_mahram: butir_mahram
 			},
 			invoice: {
@@ -420,9 +410,9 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 			}
 		};
 
+		console.log('Sending data to N8n:', JSON.stringify(n8nData, null, 2));
 
-
-		// Kirim data ke N8n webhook dengan URL yang baru
+		// Kirim data ke N8n webhook
 		const response = await fetch('https://n8n-wb9pbdns.runner.web.id/webhook/rayhar-invoice', {
 			method: 'POST',
 			headers: {
@@ -433,10 +423,13 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 
 		if (!response.ok) {
 			console.error('Error sending data to N8n:', response.status, response.statusText);
+			const responseText = await response.text();
+			console.error('N8n response:', responseText);
 			throw new Error(`N8n webhook failed: ${response.status} ${response.statusText}`);
 		}
 
 		const responseData = await response.text();
+		console.log('N8n webhook success:', responseData);
 
 	} catch (error) {
 		console.error('Error sending data to N8n webhook:', error);
@@ -483,11 +476,12 @@ export async function load() {
 			console.error('Error fetching destinations:', destinationsError);
 		}
 
-		// Fetch pelancongan dates with pricing
+		// Fetch pelancongan dates with pricing (filtered by current date)
 		const { data: outboundDates, error: outboundDatesError } = await supabase
 			.from('outbound_dates')
 			.select('id, start_date, end_date, single, double, triple, cwb, cnb, infant, destination_id')
-			.order('start_date');
+			.gte('start_date', today)
+			.order('start_date', { ascending: true });
 
 		if (outboundDatesError) {
 			console.error('Error fetching pelancongan dates:', outboundDatesError);
@@ -568,7 +562,7 @@ export async function load() {
 				umrah_categories!inner(id, name)
 			`)
 			.gte('start_date', today)
-			.order('start_date');
+			.order('start_date', { ascending: true });
 
 		if (umrahDatesError) {
 			console.error('Error fetching umrah dates:', umrahDatesError);
