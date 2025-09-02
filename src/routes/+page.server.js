@@ -403,6 +403,7 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 				"high_deck_seaview": pilih_bilik === 'high_deck_seaview' ? true : '',
 				"high_deck_balcony": pilih_bilik === 'high_deck_balcony' ? true : '',
 				"Pilihan Penerbangan": pilihan_penerbangan,
+				"consultant_uuid": formData.get('konsultan') || '',
 				butir_mahram: butir_mahram
 			},
 			invoice: {
