@@ -396,6 +396,12 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 				"4 bilik": pilih_bilik === 'quad' ? true : '',
 				"5 bilik": pilih_bilik === 'quintuple' ? true : '',
 				"Bilik Pelancongan": tarikh_berlepas ? pilih_bilik_pelancongan || '' : '',
+				"low_deck_interior": pilih_bilik === 'low_deck_interior' ? true : '',
+				"low_deck_seaview": pilih_bilik === 'low_deck_seaview' ? true : '',
+				"low_deck_balcony": pilih_bilik === 'low_deck_balcony' ? true : '',
+				"high_deck_interior": pilih_bilik === 'high_deck_interior' ? true : '',
+				"high_deck_seaview": pilih_bilik === 'high_deck_seaview' ? true : '',
+				"high_deck_balcony": pilih_bilik === 'high_deck_balcony' ? true : '',
 				"Pilihan Penerbangan": pilihan_penerbangan,
 				butir_mahram: butir_mahram
 			},
