@@ -1,5 +1,13 @@
 <script>
-	import { enhance } from '$app/forms';
+	import { onMount } from 'svelte';
+	import { dataService } from '$lib/supabase.js';
+	import { 
+		calculateOutboundTotalPrice, 
+		calculateUmrahTotalPrice, 
+		collectParticipantCategories, 
+		parseMalaysianNRIC,
+		sendToN8n 
+	} from '$lib/bookingService.js';
 	
 	// Custom CSS untuk memastikan animation berfungsi
 	const customStyles = `
@@ -18,16 +26,21 @@
 		style.textContent = customStyles;
 		document.head.appendChild(style);
 	}
-	let { data, form } = $props();
-	const branches = data?.branches ?? [];
-	const packageTypes = data?.packageTypes ?? [];
-	const destinations = data?.destinations ?? [];
-	const outboundDates = data?.outboundDates ?? [];
-	const umrahSeasons = data?.umrahSeasons ?? [];
-	const umrahCategories = data?.umrahCategories ?? [];
-	const airlines = data?.airlines ?? [];
-	const umrahDates = data?.umrahDates ?? [];
-	const consultants = data?.consultants ?? [];
+	
+	// Data state untuk client-side loading
+	let branches = $state([]);
+	let packageTypes = $state([]);
+	let destinations = $state([]);
+	let outboundDates = $state([]);
+	let umrahSeasons = $state([]);
+	let umrahCategories = $state([]);
+	let airlines = $state([]);
+	let umrahDates = $state([]);
+	let consultants = $state([]);
+	
+	// Loading states
+	let dataLoading = $state(true);
+	let dataError = $state(null);
 	
 	let showSuccess = $state(false);
 	let showError = $state(false);
@@ -187,6 +200,346 @@
 			func.timeoutId = setTimeout(() => func.apply(this, args), delay);
 		};
 	}
+
+	// Load data dari Supabase
+	async function loadData() {
+		try {
+			console.log('loadData started...');
+			dataLoading = true;
+			dataError = null;
+			
+			const [
+				branchesData,
+				packageTypesData,
+				destinationsData,
+				outboundDatesData,
+				umrahSeasonsData,
+				umrahCategoriesData,
+				airlinesData,
+				umrahDatesData,
+				consultantsData
+			] = await Promise.all([
+				dataService.getBranches(),
+				dataService.getPackageTypes(),
+				dataService.getDestinations(),
+				dataService.getOutboundDates(),
+				dataService.getUmrahSeasons(),
+				dataService.getUmrahCategories(),
+				dataService.getAirlines(),
+				dataService.getUmrahDates(),
+				dataService.getConsultants()
+			]);
+			
+			branches = branchesData;
+			packageTypes = packageTypesData;
+			destinations = destinationsData;
+			outboundDates = outboundDatesData;
+			umrahSeasons = umrahSeasonsData;
+			umrahCategories = umrahCategoriesData;
+			airlines = airlinesData;
+			umrahDates = umrahDatesData;
+			consultants = consultantsData;
+			
+			console.log('Data loaded successfully:', {
+				branches: branches.length,
+				packageTypes: packageTypes.length,
+				destinations: destinations.length,
+				outboundDates: outboundDates.length,
+				umrahSeasons: umrahSeasons.length,
+				umrahCategories: umrahCategories.length,
+				airlines: airlines.length,
+				umrahDates: umrahDates.length,
+				consultants: consultants.length
+			});
+			
+		} catch (error) {
+			console.error('Error loading data:', error);
+			dataError = error.message || 'Gagal memuat data. Silakan refresh halaman.';
+		} finally {
+			dataLoading = false;
+		}
+	}
+
+	// Handle form submission
+	async function handleFormSubmit(event) {
+		event.preventDefault();
+		
+		if (isSubmitting) return;
+		
+		try {
+			isSubmitting = true;
+			showError = false;
+			errorMessage = '';
+			validationErrors = [];
+			
+			const formData = new FormData(event.target);
+			
+			// Validate required fields
+			const requiredFields = ['gelaran', 'nama', 'nokp', 'telefon', 'email', 'alamat', 'poskod'];
+			const missingFields = [];
+			
+			for (const field of requiredFields) {
+				if (!formData.get(field)) {
+					missingFields.push(field);
+				}
+			}
+			
+			if (missingFields.length > 0) {
+				throw new Error(`Field yang wajib diisi: ${missingFields.join(', ')}`);
+			}
+			
+			// Validate NRIC
+			const nokp = formData.get('nokp');
+			const nokpDigits = String(nokp || '').replace(/\D/g, '');
+			if (nokpDigits.length !== 12) {
+				throw new Error('No K/P mesti 12 digit');
+			}
+			
+			const derivedApplicant = parseMalaysianNRIC(nokpDigits);
+			if (!derivedApplicant || !derivedApplicant.birthDate) {
+				throw new Error('Tarikh lahir dalam No K/P tidak sah');
+			}
+			
+			// Validate poskod
+			const poskod = formData.get('poskod');
+			const poskodDigits = String(poskod || '').replace(/[^0-9]/g, '');
+			if (poskodDigits.length !== 5) {
+				throw new Error('Poskod mesti mempunyai tepat 5 digit angka');
+			}
+			
+			// Get postcode data
+			const postcodeData = await dataService.getPostcodeData(poskodDigits);
+			if (!postcodeData || postcodeData.length === 0) {
+				throw new Error('Poskod tidak dijumpai dalam pangkalan data. Sila semak poskod.');
+			}
+			
+			// Derive negeri/bandar from postcode
+			let derivedNegeri = null;
+			const bandarSet = new Set();
+			for (const row of postcodeData) {
+				if (!derivedNegeri && row?.negeri) derivedNegeri = row.negeri;
+				if (row?.bandar) bandarSet.add(row.bandar);
+			}
+			
+			if (!derivedNegeri) {
+				throw new Error('Tidak berjaya auto-lengkap poskod. Sila pilih negeri & bandar.');
+			}
+			
+			// Prepare booking data
+			const maklumat = {
+				gelaran: formData.get('gelaran'),
+				nama: formData.get('nama').trim(),
+				nokp: nokpDigits,
+				telefon: formData.get('telefon'),
+				email: formData.get('email'),
+				alamat: formData.get('alamat'),
+				poskod: poskodDigits,
+				negeri: derivedNegeri,
+				bandar: Array.from(bandarSet)[0] || formData.get('bandar'),
+				branch_id: formData.get('cawangan') || null,
+				destination_id: formData.get('destinasi') || null,
+				outbound_date_id: formData.get('tarikh_berlepas') || null,
+				umrah_season_id: formData.get('musim_umrah') || null,
+				umrah_category_id: formData.get('kategori_umrah') || null,
+				airline_id: formData.get('airline') || null,
+				umrah_date_id: formData.get('tarikh_umrah') || null,
+				consultant_id: formData.get('konsultan') || null,
+				package_id: formData.get('pakej') || null,
+				bilangan: parseInt(formData.get('bilangan')) || 0,
+				perlu_partner_bilik: formData.get('perlu_partner_bilik') === 'on',
+				jenis_bilik: null, // Will be set below based on package type
+				total_price: null, // Will be calculated below
+				age: derivedApplicant.age,
+				gender: derivedApplicant.gender,
+				birth_date: derivedApplicant.birthDate.toISOString().slice(0, 10)
+			};
+			
+			// Check user inquiry
+			try {
+				const userJourney = await dataService.checkUserInquiry(maklumat.telefon);
+				if (userJourney && userJourney.is_from_inquiry) {
+					maklumat.is_from_inquiry = true;
+					maklumat.lead_reference_id = userJourney.lead_id;
+				} else {
+					maklumat.is_from_inquiry = false;
+				}
+			} catch (error) {
+				console.warn('Error checking user inquiry:', error);
+				maklumat.is_from_inquiry = false;
+			}
+			
+			// Set jenis_bilik and calculate total price
+			if (maklumat.outbound_date_id) {
+				// For pelancongan packages
+				const pilihBilikPelancongan = formData.get('pilih_bilik_pelancongan');
+				if (!pilihBilikPelancongan) {
+					throw new Error('Bilik Pelancongan wajib dipilih sebelum booking');
+				}
+				maklumat.jenis_bilik = pilihBilikPelancongan;
+				
+				const totalParticipants = maklumat.bilangan + 1;
+				const outboundTotalPrice = await calculateOutboundTotalPrice(
+					maklumat.outbound_date_id, 
+					pilihBilikPelancongan, 
+					totalParticipants, 
+					collectParticipantCategories(formData, totalParticipants)
+				);
+				maklumat.total_price = outboundTotalPrice;
+				
+				console.log('Pelancongan - jenis_bilik:', maklumat.jenis_bilik, 'total_price:', maklumat.total_price);
+			}
+			
+			if (maklumat.umrah_date_id) {
+				// For umrah packages
+				const pilihBilik = formData.get('pilih_bilik');
+				if (!pilihBilik) {
+					throw new Error('Bilik Umrah wajib dipilih sebelum booking');
+				}
+				maklumat.jenis_bilik = pilihBilik;
+				
+				const totalParticipants = maklumat.bilangan + 1;
+				const umrahTotalPrice = await calculateUmrahTotalPrice(
+					maklumat.umrah_date_id, 
+					pilihBilik, 
+					totalParticipants, 
+					collectParticipantCategories(formData, totalParticipants)
+				);
+				maklumat.total_price = umrahTotalPrice;
+				
+				console.log('Umrah - jenis_bilik:', maklumat.jenis_bilik, 'total_price:', maklumat.total_price);
+			}
+			
+			// Validate that we have both jenis_bilik and total_price
+			if (!maklumat.jenis_bilik) {
+				throw new Error('Jenis bilik tidak dapat ditentukan. Pastikan Anda memilih jenis bilik yang sesuai.');
+			}
+			
+			if (!maklumat.total_price || maklumat.total_price <= 0) {
+				throw new Error('Total harga tidak dapat dihitung. Pastikan data harga tersedia untuk tanggal yang dipilih.');
+			}
+			
+			// Debug: Log final booking data before submission
+			console.log('=== FINAL BOOKING DATA ===');
+			console.log('jenis_bilik:', maklumat.jenis_bilik);
+			console.log('total_price:', maklumat.total_price);
+			console.log('outbound_date_id:', maklumat.outbound_date_id);
+			console.log('umrah_date_id:', maklumat.umrah_date_id);
+			console.log('bilangan:', maklumat.bilangan);
+			console.log('Full maklumat object:', JSON.stringify(maklumat, null, 2));
+			console.log('========================');
+			
+			// Submit booking
+			const bookingData = await dataService.submitBooking(maklumat);
+			const bookingId = bookingData[0].id;
+			
+			console.log('Booking submitted successfully. ID:', bookingId);
+			
+			// Submit members
+			const pesertaData = [];
+			const pesertaMap = new Map();
+			
+			for (const [key, value] of formData.entries()) {
+				let match = /^peserta_nama_(\d+)$/.exec(String(key));
+				if (match) {
+					const id = match[1];
+					const existing = pesertaMap.get(id) || {};
+					existing.nama = String(value || '').trim();
+					pesertaMap.set(id, existing);
+					continue;
+				}
+				match = /^peserta_nokp_(\d+)$/.exec(String(key));
+				if (match) {
+					const id = match[1];
+					const existing = pesertaMap.get(id) || {};
+					existing.nokp = String(value || '');
+					pesertaMap.set(id, existing);
+					continue;
+				}
+				match = /^peserta_kategori_(\d+)$/.exec(String(key));
+				if (match) {
+					const id = match[1];
+					const existing = pesertaMap.get(id) || {};
+					existing.kategori = String(value || '');
+					pesertaMap.set(id, existing);
+				}
+			}
+			
+			for (const [id, peserta] of pesertaMap.entries()) {
+				if (!peserta.nama) continue;
+				
+				const pesertaRecord = {
+					booking_id: bookingId,
+					nama: peserta.nama,
+					nokp: null,
+					cwb: peserta.kategori === 'cwb',
+					infant: peserta.kategori === 'infant',
+					cnb: peserta.kategori === 'cnb'
+				};
+				
+				if (peserta.nokp && peserta.nokp.trim() !== '') {
+					const nokpDigits = String(peserta.nokp).replace(/\D/g, '');
+					if (nokpDigits.length === 12) {
+						const derivedPeserta = parseMalaysianNRIC(nokpDigits);
+						if (derivedPeserta && derivedPeserta.birthDate) {
+							pesertaRecord.nokp = nokpDigits;
+							pesertaRecord.age = derivedPeserta.age;
+							pesertaRecord.gender = derivedPeserta.gender;
+							pesertaRecord.birth_date = derivedPeserta.birthDate.toISOString().slice(0, 10);
+						}
+					}
+				}
+				
+				pesertaData.push(pesertaRecord);
+			}
+			
+			if (pesertaData.length > 0) {
+				await dataService.submitMembers(pesertaData);
+			}
+			
+			// Send to N8n
+			console.log('🔄 Starting N8n webhook process...');
+			try {
+				await sendToN8n(formData, bookingId, pesertaData, maklumat.total_price);
+				console.log('✅ N8n webhook completed successfully');
+			} catch (n8nError) {
+				console.warn('⚠️ N8n webhook error (non-blocking):', n8nError);
+				console.warn('📝 Booking was still saved successfully, only invoice generation failed');
+			}
+			
+			// Show success
+			showSuccess = true;
+			startCountdown();
+			
+		} catch (error) {
+			console.error('Form submission error:', error);
+			showError = true;
+			errorMessage = error.message || 'Terjadi kesalahan. Silakan coba lagi.';
+		} finally {
+			isSubmitting = false;
+		}
+	}
+
+	// Start countdown for redirect
+	function startCountdown() {
+		countdownSeconds = 5;
+		countdownInterval = setInterval(() => {
+			countdownSeconds--;
+			if (countdownSeconds <= 0) {
+				clearInterval(countdownInterval);
+				// Redirect to home or show message
+				window.location.reload();
+			}
+		}, 1000);
+	}
+
+	// Computed properties untuk sorted data
+	let sortedConsultants = $derived([...consultants].sort((a, b) => (a.sales_consultant_number || 0) - (b.sales_consultant_number || 0)));
+
+	// Load data on mount
+	onMount(() => {
+		console.log('onMount called, loading data...');
+		loadData();
+	});
 
 	// Fallback static options if record does not include room info
 	const fallbackRoomOptions = [
@@ -705,112 +1058,7 @@
 		return totalPrice;
 	}
 
-	// Function untuk menghitung total harga paket umrah
-	function calculateUmrahTotalPrice() {
 
-		
-		if (!selectedTarikhUmrah || !selectedRoomType) {
-			return 0;
-		}
-
-		// Cari data tarikh umrah yang dipilih
-		const selectedUmrahDate = filteredUmrahDates.find(d => String(d.id) === String(selectedTarikhUmrah));
-		
-		if (!selectedUmrahDate) {
-			return 0;
-		}
-
-		// Dapatkan harga dasar berdasarkan jenis bilik yang dipilih
-		let basePrice = 0;
-		let roomTypeLabel = '';
-		
-
-		
-		switch (selectedRoomType) {
-			case 'double':
-				basePrice = parseFloat(selectedUmrahDate.double) || 0;
-				roomTypeLabel = 'Bilik Double/Twin';
-				break;
-			case 'triple':
-				basePrice = parseFloat(selectedUmrahDate.triple) || 0;
-				roomTypeLabel = 'Bilik Triple';
-				break;
-			case 'quad':
-				basePrice = parseFloat(selectedUmrahDate.quadruple) || 0;
-				roomTypeLabel = 'Bilik Quad';
-				break;
-			case 'quintuple':
-				basePrice = parseFloat(selectedUmrahDate.quintuple) || 0;
-				roomTypeLabel = 'Bilik Quintuple';
-				break;
-			case 'single':
-				basePrice = parseFloat(selectedUmrahDate.single) || 0;
-				roomTypeLabel = 'Bilik Single';
-				break;
-			// Tambahkan case untuk tipe kamar deck (cruise packages)
-			case 'low_deck_interior':
-				basePrice = parseFloat(selectedUmrahDate.low_deck_interior) || 0;
-				roomTypeLabel = 'LOW DECK + INTERIOR';
-				break;
-			case 'low_deck_seaview':
-				basePrice = parseFloat(selectedUmrahDate.low_deck_seaview) || 0;
-				roomTypeLabel = 'LOW DECK + SEAVIEW';
-				break;
-			case 'low_deck_balcony':
-				basePrice = parseFloat(selectedUmrahDate.low_deck_balcony) || 0;
-				roomTypeLabel = 'LOW DECK + BALCONY';
-				break;
-			case 'high_deck_interior':
-				basePrice = parseFloat(selectedUmrahDate.high_deck_interior) || 0;
-				roomTypeLabel = 'HIGH DECK + INTERIOR';
-				break;
-			case 'high_deck_seaview':
-				basePrice = parseFloat(selectedUmrahDate.high_deck_seaview) || 0;
-				roomTypeLabel = 'HIGH DECK + SEAVIEW';
-				break;
-			case 'high_deck_balcony':
-				basePrice = parseFloat(selectedUmrahDate.high_deck_balcony) || 0;
-				roomTypeLabel = 'HIGH DECK + BALCONY';
-				break;
-			default:
-				return 0;
-		}
-
-		if (basePrice <= 0) {
-			return 0;
-		}
-
-		// Hitung total berdasarkan jumlah peserta
-		let totalPrice = basePrice; // Peserta 1 (pendaftar utama)
-
-		// Tambahkan harga untuk peserta tambahan berdasarkan kategori
-		if (selectedBilangan && pesertaData.length > 0) {
-			pesertaData.forEach((peserta, index) => {
-				if (peserta.kategori === 'cwb') {
-					// CWB (Child With Bed) - kurangi RM 500 dari harga bilik yang dipilih
-					let cwbPrice = basePrice - 500;
-					// Pastikan harga tidak negatif
-					cwbPrice = Math.max(cwbPrice, 0);
-					totalPrice += cwbPrice;
-				} else if (peserta.kategori === 'cnb') {
-					// CNB (Child No Bed) - gunakan harga spesifik dari Supabase
-					const cnbPrice = parseFloat(selectedUmrahDate.cnb) || 0;
-					const finalCnbPrice = cnbPrice > 0 ? cnbPrice : basePrice;
-					totalPrice += finalCnbPrice;
-				} else if (peserta.kategori === 'infant') {
-					// Infant - gunakan harga spesifik dari Supabase
-					const infantPrice = parseFloat(selectedUmrahDate.infant) || 0;
-					const finalInfantPrice = infantPrice > 0 ? infantPrice : basePrice;
-					totalPrice += finalInfantPrice;
-				} else {
-					// Dewasa (tidak ada kategori khusus) - 100% dari harga bilik yang dipilih
-					totalPrice += basePrice;
-				}
-			});
-		}
-
-		return totalPrice;
-	}
 
 	// Function untuk mendapatkan detail breakdown harga umrah
 	function getUmrahPriceBreakdown() {
@@ -1100,6 +1348,15 @@
 		// Hanya kategori "Pelayaran" murni yang tidak memerlukan airline
 		// "Umrah + Pelayaran" tetap memerlukan airline karena ada komponen umrah
 		return selectedCategory && selectedCategory.name !== 'Pelayaran';
+	});
+
+	// Computed property untuk menentukan apakah ini adalah paket cruise
+	let isCruisePackage = $derived(() => {
+		if (!selectedKategoriUmrah) return false;
+		
+		const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
+		// Kategori "Pelayaran" dan "Umrah + Pelayaran" adalah paket cruise
+		return selectedCategory && (selectedCategory.name === 'Pelayaran' || selectedCategory.name === 'Umrah + Pelayaran');
 	});
 
 	// Effect untuk mengontrol visibility airline berdasarkan pilihan kategori umrah
@@ -1793,7 +2050,25 @@
 		<h2 class="m-0 text-[24px] sm:text-[28px] font-bold tracking-[0.4px]">ISI MAKLUMAT ANDA</h2>
 	</div>
 
-	{#if showSuccess}
+	{#if dataLoading}
+		<div class="bg-white border border-[#e5e7eb] rounded-[14px] shadow-[0_10px_24px_rgba(17,24,39,0.06)] p-7 max-w-[720px] mx-auto mb-10">
+			<div class="text-center">
+				<div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#942392] mb-4"></div>
+				<p class="text-gray-600">Memuat data...</p>
+			</div>
+		</div>
+	{:else if dataError}
+		<div class="bg-[#fee2e2] border border-[#ef4444] rounded-[10px] p-4 mb-5 text-[#dc2626] text-sm text-center">
+			<p class="font-semibold mb-2">Gagal memuat data</p>
+			<p class="mb-4">{dataError}</p>
+			<button 
+				onclick={loadData}
+				class="bg-[#942392] text-white px-4 py-2 rounded-[10px] hover:bg-[#7a1d7a] transition-colors"
+			>
+				Coba Lagi
+			</button>
+		</div>
+	{:else if showSuccess}
 		<div class="bg-[#d1fae5] border border-[#10b981] rounded-[14px] p-4 sm:p-7 text-center max-w-[720px] mx-auto">
 			<h3 class="text-[#065f46] m-0 mb-3 text-2xl font-semibold">Terima Kasih!</h3>
 			<p class="text-[#047857] m-0 text-base mb-4">Maklumat anda berjaya dihantar.</p>
@@ -1888,141 +2163,10 @@
 		</div>
 	{:else}
 		<div class="bg-white border border-[#e5e7eb] rounded-[14px] shadow-[0_10px_24px_rgba(17,24,39,0.06)] p-4 sm:p-7 max-w-[720px] mx-auto mb-6 sm:mb-10">
-			<form 
-				class="grid grid-cols-2 gap-y-3 gap-x-4 sm:gap-y-4 sm:gap-x-5 max-[720px]:grid-cols-1" 
-				method="POST" 
-				onsubmit={(e) => {
-					// Clear previous errors
-					clearErrors();
-					
-					// Set loading state IMMEDIATELY when form is submitted
-					isSubmitting = true;
-					
-					// Validasi form sebelum submit
-					const errors = validateForm();
-					
-					if (errors.length > 0) {
-						showValidationErrors(errors);
-						isSubmitting = false;
-						e.preventDefault();
-						return false;
-					}
-					
-					// Prevent form submission if there's a postcode error or incomplete postcode
-					if (poskodError || poskodValue.length !== 5) {
-						if (poskodValue.length !== 5) {
-							poskodError = 'Sila masukkan poskod 5 digit yang lengkap';
-						}
-						isSubmitting = false;
-						e.preventDefault();
-						return false;
-					}
-					
-					// Don't prevent default - let form submit normally
-				}}
-				use:enhance={() => {
-					return async ({ result, cancel }) => {
-						if (result.type === 'success') {
-							isSubmitting = false;
-							showSuccess = true;
-							showError = false;
-						
-						// Set timer untuk redirect kembali ke form setelah 5 detik
-						countdownSeconds = 5;
-						countdownInterval = setInterval(() => {
-							countdownSeconds--;
-							if (countdownSeconds <= 0) {
-								clearInterval(countdownInterval);
-								countdownInterval = null;
-							}
-						}, 1000);
-						
-						redirectTimer = setTimeout(() => {
-							showSuccess = false;
-							isSubmitting = false;
-							// Reset semua form data
-							selectedGelaran = '';
-							mainFormData = { nama: '', nokp: '', gelaran: '' };
-							selectedNegeri = '';
-							selectedBandar = '';
-							poskodValue = '';
-							poskodError = '';
-							poskodLoading = false;
-							poskodValidated = false;
-							selectedDestinasi = '';
-							selectedTarikh = '';
-							selectedBilangan = '';
-							selectedMusimUmrah = '';
-							selectedKategoriUmrah = '';
-							selectedAirline = 'null';
-					selectedAirlineName = '';
-							selectedTarikhUmrah = '';
-							perluPartnerBilik = false;
-							selectedRoomType = '';
-							selectedPelanconganRoomType = '';
-							selectedCawangan = '';
-							selectedKonsultan = '';
-							selectedPackageType = '';
-							pesertaData = [];
-							peserta1Nama = '';
-							peserta1Nokp = '';
-							dynamicNegeriList = [];
-							dynamicBandarList = [];
-							
-							// Reset semua dropdown states
-							isGelaranOpen = false;
-							isPakejOpen = false;
-							isDestinasiOpen = false;
-							isMusimUmrahOpen = false;
-							isKategoriUmrahOpen = false;
-							isAirlineOpen = false;
-							isTarikhUmrahOpen = false;
-							isTarikhOpen = false;
-							isPilihBilikOpen = false;
-							isPilihBilikPelanconganOpen = false;
-							isBilanganOpen = false;
-							isNegeriOpen = false;
-							isBandarOpen = false;
-							isCawanganOpen = false;
-							isKonsultanOpen = false;
-							
-							// Reset visibility sections
-							showDestinationSection = false;
-							showDateSection = false;
-							showUmrahSeasonSection = false;
-							showUmrahCategorySection = false;
-							showAirlineSection = false;
-							showUmrahDateSection = false;
-							
-							// Reset filtered data
-							filteredOutboundDates = [];
-							filteredUmrahDates = [];
-							filteredBranches = [];
-							filteredDestinations = [];
-							searchTermBranches = '';
-							searchTermDestinations = '';
-							
-							// Reset dynamic options
-							dynamicRoomOptions = [];
-							dynamicPelanconganRoomOptions = [];
-							dynamicAirlineOptions = [];
-							dynamicCategoryOptions = [];
-							dynamicDestinationOptions = [];
-							
-							// Clear timer
-							redirectTimer = null;
-							countdownInterval = null;
-							countdownSeconds = 5;
-						}, 5000); // 5 detik
-					} else if (result.type === 'failure') {
-						console.log('Form submission failed:', result.data?.error);
-						isSubmitting = false;
-						console.log('isSubmitting reset to false after failure:', isSubmitting);
-						showError = true;
-						errorMessage = result.data?.error || 'Ralat berlaku. Sila cuba lagi.';
-					}
-				};
-			}}>
+					<form 
+			class="grid grid-cols-2 gap-y-3 gap-x-4 sm:gap-y-4 sm:gap-x-5 max-[720px]:grid-cols-1" 
+			onsubmit={handleFormSubmit}
+		>
 			<div class="flex flex-col gap-2">
 				<label class="text-[13px] font-semibold text-gray-700" for="gelaran">Gelaran<span class="text-red-500 ml-1">*</span></label>
 				<div class="relative">
@@ -2417,7 +2561,7 @@
 					{#if isKonsultanOpen}
 						<div class="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-[10px] shadow-lg z-10 max-h-96 overflow-y-auto">
 							<ul class="py-1">
-								{#each consultants.sort((a, b) => (a.sales_consultant_number || 0) - (b.sales_consultant_number || 0)) as c}
+								{#each sortedConsultants as c}
 									<li 
 										class={`px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] ${selectedKonsultan === c.id ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}`}
 										onclick={() => {
@@ -3144,7 +3288,8 @@
 								/>
 							</div>
 						</div>
-						<!-- Kategori peserta (CWB, CNB, Infant) -->
+						<!-- Kategori peserta (CWB, CNB, Infant) - Sembunyikan untuk paket cruise -->
+						{#if !isCruisePackage}
 						<div class="col-span-full mt-4">
 							<label class="text-[13px] font-semibold text-gray-700 mb-3 block">Kategori Peserta (Pilih jika kanak-kanak)</label>
 							<div class="bg-[#f8fafc] border border-[#e2e8f0] rounded-lg p-3 mb-3">
@@ -3186,6 +3331,7 @@
 								</div>
 							</div>
 						</div>
+						{/if}
 					</div>
 				{/each}
 			{/if}
