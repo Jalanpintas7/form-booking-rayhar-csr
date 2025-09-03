@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { supabase } from '$lib/server/supabase.js';
+import { createClient } from '@supabase/supabase-js';
 
 export async function GET({ url }) {
 	try {
@@ -9,6 +9,14 @@ export async function GET({ url }) {
 			return json({ error: 'Poskod mesti 5 digit' }, { status: 400 });
 		}
 
+		// Fallback configuration untuk deployment
+		const supabaseUrl = process.env.SUPABASE_URL || 'https://lrpsrlmlrgqivfczbzqp.supabase.co';
+		const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxycHNybG1scmdxaXZmY3pienFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMjAxOTYsImV4cCI6MjA3MDc5NjE5Nn0.6FuahA3i5mZZHjLmOHnZdLn_g09fgfkmL9cPPyuOeJo';
+		
+		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+			auth: { persistSession: false }
+		});
+
 		const { data, error } = await supabase
 			.from('postcode')
 			.select('bandar, negeri')
@@ -16,7 +24,8 @@ export async function GET({ url }) {
 			.limit(1000);
 
 		if (error) {
-			return json({ error: error.message }, { status: 500 });
+			console.error('Supabase error:', error);
+			return json({ error: 'Ralat semasa mencari poskod. Sila cuba lagi.' }, { status: 500 });
 		}
 
 		const bandarSet = new Set();
@@ -32,7 +41,8 @@ export async function GET({ url }) {
 
 		return json({ poskod, negeri, negeriList: Array.from(negeriSet), bandarList: Array.from(bandarSet) });
 	} catch (e) {
-		return json({ error: 'Unexpected error' }, { status: 500 });
+		console.error('Unexpected error in postcode API:', e);
+		return json({ error: 'Ralat semasa mencari poskod. Sila cuba lagi.' }, { status: 500 });
 	}
 }
 
