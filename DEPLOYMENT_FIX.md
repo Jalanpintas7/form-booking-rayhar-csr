@@ -4,17 +4,17 @@
 
 Error "Ralat semasa mencari poskod. Sila cuba lagi." terjadi karena:
 
-1. **Environment Variables tidak terkonfigurasi** pada deployment
-2. **API routes tidak berfungsi** dengan benar pada static hosting
+1. **API routes tidak berfungsi** pada static hosting (404 error)
+2. **Static deployment** tidak mendukung server-side API routes
 3. **Konfigurasi Supabase** tidak konsisten antara development dan production
 
 ## Solusi yang Diterapkan
 
-### 1. Perbaikan API Postcode (`src/routes/api/postcode/+server.js`)
+### 1. Migrasi ke Client-Side Implementation
 
-- Menambahkan fallback configuration langsung di dalam API
-- Menambahkan error logging yang lebih detail
-- Menggunakan createClient langsung untuk menghindari dependency issues
+- **Menghapus API route** `/api/postcode/+server.js` yang tidak berfungsi pada static hosting
+- **Mengubah implementasi poskod** dari server-side ke client-side langsung
+- **Menggunakan Supabase client** langsung di frontend untuk query poskod
 
 ### 2. Perbaikan Server Configuration (`src/lib/server/supabase.js`)
 
@@ -28,15 +28,12 @@ Error "Ralat semasa mencari poskod. Sila cuba lagi." terjadi karena:
 Buat file `.env` di root project dengan isi:
 
 ```env
-# Supabase Configuration
+# Supabase Configuration (Client-side)
 VITE_SUPABASE_URL=https://lrpsrlmlrgqivfczbzqp.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxycHNybG1scmdxaXZmY3pienFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMjAxOTYsImV4cCI6MjA3MDc5NjE5Nn0.6FuahA3i5mZZHjLmOHnZdLn_g09fgfkmL9cPPyuOeJo
-
-# Server-side Supabase (untuk API routes)
-SUPABASE_URL=https://lrpsrlmlrgqivfczbzqp.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxycHNybG1scmdxaXZmY3pienFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMjAxOTYsImV4cCI6MjA3MDc5NjE5Nn0.6FuahA3i5mZZHjLmOHnZdLn_g09fgfkmL9cPPyuOeJo
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxycHNybG1scmdxaXZmY3pienFwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTIyMDE5NiwiZXhwIjoyMDcwNzk2MTk2fQ.ruZkHF3apDEkVhyXL20L-wRueaa7iN7kGDopERi2KBU
 ```
+
+**Catatan**: Sekarang hanya perlu environment variables untuk client-side karena API routes sudah dihapus.
 
 ### 2. Konfigurasi Platform Deployment
 
@@ -56,9 +53,6 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhY
 Pastikan environment variables berikut tersedia:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
 
 ### 3. Build dan Deploy
 
@@ -98,21 +92,23 @@ Setelah deployment, test dengan:
    - Pastikan API keys masih valid
    - Cek RLS policies di Supabase dashboard
 
-4. **Cek API Endpoint**:
-   - Test langsung: `https://your-domain.com/api/postcode?poskod=50000`
-   - Pastikan response tidak error
+4. **Cek Supabase Connection**:
+   - Buka browser console (F12)
+   - Lihat apakah ada error koneksi ke Supabase
+   - Pastikan environment variables sudah terkonfigurasi dengan benar
 
 ## Catatan Penting
 
-- **Security**: API keys sudah di-hardcode sebagai fallback, tapi sebaiknya gunakan environment variables untuk production
-- **Performance**: API sekarang memiliki fallback configuration yang lebih robust
+- **Static Deployment**: Sekarang menggunakan client-side Supabase langsung, tidak memerlukan server-side API routes
+- **Performance**: Query poskod langsung dari client ke Supabase, lebih cepat dan efisien
 - **Error Handling**: Error messages sudah diperbaiki untuk memberikan feedback yang lebih jelas
+- **Security**: Pastikan RLS (Row Level Security) policies sudah dikonfigurasi dengan benar di Supabase
 
 ## Support
 
 Jika masih ada masalah setelah mengikuti langkah-langkah di atas:
 
-1. Cek log deployment platform
-2. Cek Supabase dashboard untuk error logs
-3. Test API endpoint secara langsung
-4. Pastikan semua environment variables sudah terkonfigurasi dengan benar
+1. Cek browser console untuk error messages
+2. Cek Supabase dashboard untuk error logs dan RLS policies
+3. Pastikan environment variables sudah terkonfigurasi dengan benar
+4. Test koneksi Supabase langsung di browser console

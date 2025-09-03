@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
-	import { dataService } from '$lib/supabase.js';
+	import { dataService, supabase } from '$lib/supabase.js';
 	import { 
 		calculateOutboundTotalPrice, 
 		calculateUmrahTotalPrice, 
@@ -1693,17 +1693,38 @@
 			poskodLoading = true;
 			poskodValidated = false;
 			
-			const res = await fetch(`/api/postcode?poskod=${encodeURIComponent(code)}`);
-			if (!res.ok) {
+			// Use client-side Supabase directly instead of API route
+			const { data, error } = await supabase
+				.from('postcode')
+				.select('bandar, negeri')
+				.eq('postcode_number', code)
+				.limit(1000);
+
+			if (error) {
+				console.error('Supabase error:', error);
 				poskodError = 'Ralat semasa mencari poskod. Sila cuba lagi.';
 				poskodValidated = true;
 				return;
 			}
+
+			// Process data similar to server-side logic
+			const bandarSet = new Set();
+			const negeriSet = new Set();
+			let negeri = null;
 			
-			const data = await res.json();
+			for (const row of data || []) {
+				if (row?.negeri) {
+					negeriSet.add(row.negeri);
+					if (!negeri) negeri = row.negeri;
+				}
+				if (row?.bandar) bandarSet.add(row.bandar);
+			}
+
+			const negeriList = Array.from(negeriSet);
+			const bandarList = Array.from(bandarSet);
 			
 			// Check if data exists and has negeri/bandar
-			if (!data || (!data.negeriList && !data.bandarList)) {
+			if (negeriList.length === 0 && bandarList.length === 0) {
 				poskodError = 'Poskod tidak ditemukan dalam pangkalan data. Sila pastikan poskod yang dimasukkan adalah betul.';
 				dynamicNegeriList = [];
 				dynamicBandarList = [];
@@ -1713,37 +1734,25 @@
 				return;
 			}
 			
-			// Check if arrays are empty
-			if ((!data.negeriList || data.negeriList.length === 0) && 
-				(!data.bandarList || data.bandarList.length === 0)) {
-				poskodError = 'Poskod tidak ditemukan dalam pangkalan data. Sila pastikan poskod yang dimasukkan adalah betul.';
-				dynamicNegeriList = [];
-				dynamicBandarList = [];
-				selectedNegeri = '';
-				selectedBandar = '';
-				poskodValidated = true;
-				return;
+			// Set the data
+			dynamicNegeriList = negeriList;
+			if (negeri) {
+				selectedNegeri = negeri;
+			} else if (negeriList.length > 0) {
+				selectedNegeri = negeriList[0];
 			}
 			
-			if (Array.isArray(data?.negeriList)) {
-				dynamicNegeriList = data.negeriList;
-			}
-			if (data?.negeri) {
-				selectedNegeri = data.negeri;
-			} else if (Array.isArray(data?.negeriList) && data.negeriList.length > 0) {
-				selectedNegeri = data.negeriList[0];
-			}
-			if (Array.isArray(data?.bandarList) && data.bandarList.length > 0) {
-				dynamicBandarList = data.bandarList;
-				selectedBandar = data.bandarList[0];
+			if (bandarList.length > 0) {
+				dynamicBandarList = bandarList;
+				selectedBandar = bandarList[0];
 			}
 			
 			// Mark as validated successfully
 			poskodValidated = true;
 		} catch (e) {
+			console.error('Unexpected error in postcode lookup:', e);
 			poskodError = 'Ralat rangkaian. Sila cuba lagi.';
 			poskodValidated = true;
-			// ignore network errors
 		} finally {
 			poskodLoading = false;
 		}
