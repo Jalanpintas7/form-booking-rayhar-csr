@@ -1350,15 +1350,6 @@
 		return selectedCategory && selectedCategory.name !== 'Pelayaran';
 	});
 
-	// Computed property untuk menentukan apakah ini adalah paket cruise
-	let isCruisePackage = $derived(() => {
-		if (!selectedKategoriUmrah) return false;
-		
-		const selectedCategory = umrahCategories.find(cat => String(cat.id) === String(selectedKategoriUmrah));
-		// Kategori "Pelayaran" dan "Umrah + Pelayaran" adalah paket cruise
-		return selectedCategory && (selectedCategory.name === 'Pelayaran' || selectedCategory.name === 'Umrah + Pelayaran');
-	});
-
 	// Effect untuk mengontrol visibility airline berdasarkan pilihan kategori umrah
 	$effect(() => {
 		if (selectedKategoriUmrah && showUmrahCategorySection) {
@@ -3288,8 +3279,7 @@
 								/>
 							</div>
 						</div>
-						<!-- Kategori peserta (CWB, CNB, Infant) - Sembunyikan untuk paket cruise -->
-						{#if !isCruisePackage}
+						<!-- Kategori peserta (CWB, CNB, Infant) -->
 						<div class="col-span-full mt-4">
 							<label class="text-[13px] font-semibold text-gray-700 mb-3 block">Kategori Peserta (Pilih jika kanak-kanak)</label>
 							<div class="bg-[#f8fafc] border border-[#e2e8f0] rounded-lg p-3 mb-3">
@@ -3331,7 +3321,6 @@
 								</div>
 							</div>
 						</div>
-						{/if}
 					</div>
 				{/each}
 			{/if}
