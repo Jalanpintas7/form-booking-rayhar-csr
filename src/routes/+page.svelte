@@ -40,6 +40,7 @@
 
 	// State untuk mengontrol visibility form
 	let selectedPackageType = $state('');
+	let selectedPackageTypeName = $state('');
 	let showDestinationSection = $state(false);
 	let showDateSection = $state(false);
 	let showUmrahSeasonSection = $state(false);
@@ -131,6 +132,7 @@
 	let selectedMusimUmrah = $state('');
 	let selectedKategoriUmrah = $state('');
 	let selectedAirline = $state('');
+	let selectedAirlineName = $state('');
 	let selectedTarikhUmrah = $state('');
 	let perluPartnerBilik = $state(false);
 	let selectedRoomType = $state('');
@@ -1075,6 +1077,7 @@
 			selectedMusimUmrah = '';
 			selectedKategoriUmrah = '';
 			selectedAirline = 'null'; // Reset ke 'null' untuk konsistensi
+			selectedAirlineName = '';
 			selectedTarikhUmrah = '';
 		}
 	});
@@ -1113,6 +1116,7 @@
 				showAirlineSection = false;
 				showUmrahDateSection = true;
 				selectedAirline = 'null'; // Set airline ke 'null' untuk paket cruise
+				selectedAirlineName = '';
 			} else {
 				// Untuk paket lain termasuk Umrah + Pelayaran, tetap tampilkan section penerbangan
 				showAirlineSection = true;
@@ -1123,6 +1127,7 @@
 			showAirlineSection = false;
 			showUmrahDateSection = false;
 			selectedAirline = 'null'; // Reset ke 'null' untuk konsistensi
+			selectedAirlineName = '';
 			selectedTarikhUmrah = '';
 		}
 	});
@@ -1819,6 +1824,7 @@
 					selectedMusimUmrah = '';
 					selectedKategoriUmrah = '';
 					selectedAirline = 'null';
+					selectedAirlineName = '';
 					selectedTarikhUmrah = '';
 					perluPartnerBilik = false;
 					selectedRoomType = '';
@@ -1826,6 +1832,7 @@
 					selectedCawangan = '';
 					selectedKonsultan = '';
 					selectedPackageType = '';
+					selectedPackageTypeName = '';
 					pesertaData = [];
 					peserta1Nama = '';
 					peserta1Nokp = '';
@@ -1948,6 +1955,7 @@
 							selectedMusimUmrah = '';
 							selectedKategoriUmrah = '';
 							selectedAirline = 'null';
+					selectedAirlineName = '';
 							selectedTarikhUmrah = '';
 							perluPartnerBilik = false;
 							selectedRoomType = '';
@@ -2464,7 +2472,8 @@
 										class="px-3 py-2 cursor-pointer hover:bg-purple-50 text-[14px] {selectedPackageType === String(p.id) ? 'bg-purple-100 text-purple-700' : 'text-gray-700'}"
 										onclick={() => {
 											selectedPackageType = String(p.id);
-											console.log('Package dropdown changed to:', selectedPackageType);
+											selectedPackageTypeName = p.name;
+											console.log('Package dropdown changed to:', selectedPackageType, 'Name:', selectedPackageTypeName);
 											isPakejOpen = false;
 										}}
 									>
@@ -2476,6 +2485,7 @@
 					{/if}
 				</div>
 				<input type="hidden" name="pakej" value={selectedPackageType} required />
+				<input type="hidden" name="package_type" value={selectedPackageTypeName} required />
 			</div>
 
 			{#if showDestinationSection && destinations && destinations.length > 0}
@@ -2681,6 +2691,7 @@
 													if (!opt.disabled) {
 														selectedKategoriUmrah = opt.value;
 														selectedAirline = 'null';
+														selectedAirlineName = '';
 														selectedTarikhUmrah = '';
 														isKategoriUmrahOpen = false;
 													}
@@ -2746,6 +2757,7 @@
 												onclick={() => {
 													if (!opt.disabled) {
 														selectedAirline = opt.value;
+														selectedAirlineName = opt.label;
 														selectedTarikhUmrah = '';
 														isAirlineOpen = false;
 													}
@@ -2760,6 +2772,7 @@
 						{/if}
 					</div>
 					<input type="hidden" name="airline" value={selectedAirline} />
+					<input type="hidden" name="flight_name" value={selectedAirlineName} />
 				</div>
 			{/if}
 

@@ -60,17 +60,17 @@ async function calculateOutboundTotalPrice(outboundDateId, roomType, numberOfPar
 
 				switch (kategori) {
 					case 'cwb':
-						// CWB (Child With Bed): harga dari database
+						// CWB (Child With Bed): harga dari kolom cwb di database
 						participantPrice = outboundDateData.cwb && outboundDateData.cwb !== '-' && outboundDateData.cwb !== '' ? parseFloat(outboundDateData.cwb) : basePrice;
 						console.log(`Peserta ${i} (CWB): RM ${participantPrice}`);
 						break;
 					case 'cnb':
-						// CNB (Child No Bed): harga dari database
+						// CNB (Child No Bed): harga dari kolom cnb di database
 						participantPrice = outboundDateData.cnb && outboundDateData.cnb !== '-' && outboundDateData.cnb !== '' ? parseFloat(outboundDateData.cnb) : basePrice;
 						console.log(`Peserta ${i} (CNB): RM ${participantPrice}`);
 						break;
 					case 'infant':
-						// Infant: harga dari database
+						// Infant: harga dari kolom infant di database
 						participantPrice = outboundDateData.infant && outboundDateData.infant !== '-' && outboundDateData.infant !== '' ? parseFloat(outboundDateData.infant) : basePrice;
 						console.log(`Peserta ${i} (Infant): RM ${participantPrice}`);
 						break;
@@ -172,12 +172,29 @@ async function calculateUmrahTotalPrice(umrahDateId, roomType, numberOfParticipa
 
 				switch (kategori) {
 					case 'cwb':
-						// CWB (Child Without Bed): harga dari database
-						participantPrice = umrahDateData.cwb || 0;
-						console.log(`Peserta ${i} (CWB): RM ${participantPrice}`);
+						// CWB (Child With Bed): harga bilik yang dipilih - 500
+						let basePriceCwb = 0;
+						switch (roomType) {
+							case 'double':
+								basePriceCwb = umrahDateData.double || 0;
+								break;
+							case 'triple':
+								basePriceCwb = umrahDateData.triple || 0;
+								break;
+							case 'quad':
+								basePriceCwb = umrahDateData.quadruple || 0;
+								break;
+							case 'quintuple':
+								basePriceCwb = umrahDateData.quintuple || 0;
+								break;
+							default:
+								basePriceCwb = umrahDateData.double || 0;
+						}
+						participantPrice = basePriceCwb - 500;
+						console.log(`Peserta ${i} (CWB): RM ${participantPrice} (base: ${basePriceCwb} - 500)`);
 						break;
 					case 'cnb':
-						// CNB (Child No Bed): harga dari database
+						// CNB (Child No Bed): harga dari kolom cnb di database
 						participantPrice = umrahDateData.cnb || 0;
 						console.log(`Peserta ${i} (CNB): RM ${participantPrice}`);
 						break;
@@ -272,6 +289,13 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 		const tarikh_umrah = formData.get('tarikh_umrah');
 		const pilih_bilik = formData.get('pilih_bilik');
 		const pilih_bilik_pelancongan = formData.get('pilih_bilik_pelancongan');
+
+		console.log('Form data received:');
+		console.log('tarikh_umrah:', tarikh_umrah);
+		console.log('pilih_bilik:', pilih_bilik);
+		console.log('pilih_bilik_pelancongan:', pilih_bilik_pelancongan);
+
+
 		
 		// Gunakan total_price yang sudah dihitung
 		let total = totalPrice || 0;
@@ -333,17 +357,40 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 			// Untuk pakej umrah
 			const { data: umrahDateData } = await supabase
 				.from('umrah_dates')
-				.select('start_date, end_date, airlines!inner(name)')
+				.select('start_date, end_date, airlines!inner(name), umrah_categories!inner(name), flight_name')
 				.eq('id', tarikh_umrah)
 				.single();
-			
+
 			if (umrahDateData) {
-				kod_pakej = 'UMRAH';
+				kod_pakej = umrahDateData.umrah_categories?.name || '';
 				const startDate = formatDateToMalaysian(umrahDateData.start_date);
 				const endDate = formatDateToMalaysian(umrahDateData.end_date);
 				tarikh_jangkaan = `${startDate} - ${endDate}`;
 				pilihan_penerbangan = umrahDateData.airlines?.name || '';
 			}
+		}
+
+		// Ambil data harga dari database untuk perhitungan kredit
+		let umrahDateData = null;
+		let outboundDateData = null;
+
+		if (tarikh_umrah) {
+			const { data: umrahData } = await supabase
+				.from('umrah_dates')
+				.select('double, triple, quadruple, quintuple, low_deck_interior, low_deck_seaview, low_deck_balcony, high_deck_interior, high_deck_seaview, high_deck_balcony, cnb, infant, flight_name, umrah_categories!inner(name)')
+				.eq('id', tarikh_umrah)
+				.single();
+			umrahDateData = umrahData;
+			console.log('umrahDateData:', umrahDateData);
+		}
+
+		if (tarikh_berlepas) {
+			const { data: outboundData } = await supabase
+				.from('outbound_dates')
+				.select('single, double, triple, cwb, cnb, infant')
+				.eq('id', tarikh_berlepas)
+				.single();
+			outboundDateData = outboundData;
 		}
 
 		// Ambil data cawangan untuk kod tempa
@@ -354,23 +401,298 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 				.select('name')
 				.eq('id', branch_id)
 				.single();
-			
+
 			if (branchData) {
 				kod_tempa = branchData.name || '';
 			}
 		}
 
-		// Siapkan data butir mahram (10 row sesuai format yang diminta)
+		// Siapkan data butir mahram - kirim 10 row lengkap
 		const butir_mahram = {};
+
+		// Loop untuk semua peserta (1 sampai 10) - selalu kirim 10 row
 		for (let i = 1; i <= 10; i++) {
-			const nama_peserta = formData.get(`peserta_nama_${i}`);
-			const nokp_peserta = formData.get(`peserta_nokp_${i}`);
-			
+			// Untuk peserta pertama (i=1), gunakan data pendaftar utama
+			const nama_peserta = i === 1 ? nama : formData.get(`peserta_nama_${i}`);
+			const nokp_peserta = i === 1 ? nokp : formData.get(`peserta_nokp_${i}`);
+			const kategori_peserta = formData.get(`peserta_kategori_${i}`);
+
+			// Tentukan jenis bilik berdasarkan kategori peserta
+			let bilik_type = '';
+			let kredit_harga = 0;
+
+			// Hitung bilik dan kredit hanya jika ada nama peserta
+			const namaValue = i === 1 ? nama : (nama_peserta && nama_peserta.trim() !== '' ? nama_peserta.trim() : '');
+
+			if (namaValue !== '') {
+				// Untuk peserta pertama (i=1), selalu hitung bilik dan kredit
+				if (i === 1) {
+					if (pilih_bilik) {
+						bilik_type = pilih_bilik;
+						if (umrahDateData) {
+							switch (pilih_bilik) {
+								case 'double':
+									kredit_harga = umrahDateData.double || 0;
+									break;
+								case 'triple':
+									kredit_harga = umrahDateData.triple || 0;
+									break;
+								case 'quad':
+									kredit_harga = umrahDateData.quadruple || 0;
+									break;
+								case 'quintuple':
+									kredit_harga = umrahDateData.quintuple || 0;
+									break;
+								case 'low_deck_interior':
+									kredit_harga = umrahDateData.low_deck_interior || 0;
+									break;
+								case 'low_deck_seaview':
+									kredit_harga = umrahDateData.low_deck_seaview || 0;
+									break;
+								case 'low_deck_balcony':
+									kredit_harga = umrahDateData.low_deck_balcony || 0;
+									break;
+								case 'high_deck_interior':
+									kredit_harga = umrahDateData.high_deck_interior || 0;
+									break;
+								case 'high_deck_seaview':
+									kredit_harga = umrahDateData.high_deck_seaview || 0;
+									break;
+								case 'high_deck_balcony':
+									kredit_harga = umrahDateData.high_deck_balcony || 0;
+									break;
+							}
+						}
+					} else if (pilih_bilik_pelancongan) {
+						bilik_type = pilih_bilik_pelancongan;
+						if (outboundDateData) {
+							switch (pilih_bilik_pelancongan) {
+								case 'single':
+									kredit_harga = outboundDateData.single || 0;
+									break;
+								case 'double':
+									kredit_harga = outboundDateData.double || 0;
+									break;
+								case 'triple':
+									kredit_harga = outboundDateData.triple || 0;
+									break;
+							}
+						}
+					}
+				} else if (kategori_peserta) {
+				// Peserta tambahan dengan kategori
+				// Gunakan bilik yang sama seperti peserta pertama
+				let selectedRoomType = '';
+				if (umrahDateData) {
+					selectedRoomType = pilih_bilik;
+				} else if (outboundDateData) {
+					selectedRoomType = pilih_bilik_pelancongan;
+				}
+
+				// Format nama bilik: capitalize first letter
+				let roomTypeDisplay = selectedRoomType.charAt(0).toUpperCase() + selectedRoomType.slice(1);
+
+				if (kategori_peserta === 'cwb') {
+					bilik_type = `${roomTypeDisplay} (CWB)`;
+					if (umrahDateData) {
+						// Untuk umrah: CWB = harga bilik yang dipilih - 500
+						let basePrice = 0;
+						switch (pilih_bilik) {
+							case 'double':
+								basePrice = umrahDateData.double || 0;
+								break;
+							case 'triple':
+								basePrice = umrahDateData.triple || 0;
+								break;
+							case 'quad':
+								basePrice = umrahDateData.quadruple || 0;
+								break;
+							case 'quintuple':
+								basePrice = umrahDateData.quintuple || 0;
+								break;
+							case 'low_deck_interior':
+								basePrice = umrahDateData.low_deck_interior || 0;
+								break;
+							case 'low_deck_seaview':
+								basePrice = umrahDateData.low_deck_seaview || 0;
+								break;
+							case 'low_deck_balcony':
+								basePrice = umrahDateData.low_deck_balcony || 0;
+								break;
+							case 'high_deck_interior':
+								basePrice = umrahDateData.high_deck_interior || 0;
+								break;
+							case 'high_deck_seaview':
+								basePrice = umrahDateData.high_deck_seaview || 0;
+								break;
+							case 'high_deck_balcony':
+								basePrice = umrahDateData.high_deck_balcony || 0;
+								break;
+							default:
+								basePrice = umrahDateData.double || 0; // fallback ke double
+						}
+						kredit_harga = basePrice - 500; // CWB = base price - 500
+					} else if (outboundDateData) {
+						// Untuk pelancongan: CWB = harga dari kolom cwb di database
+						kredit_harga = outboundDateData.cwb || 0;
+					}
+				} else if (kategori_peserta === 'cnb') {
+					bilik_type = `${roomTypeDisplay} (CNB)`;
+					// CNB = harga dari kolom cnb di database
+					if (umrahDateData) {
+						kredit_harga = umrahDateData.cnb || 0;
+					} else if (outboundDateData) {
+						kredit_harga = outboundDateData.cnb || 0;
+					}
+				} else if (kategori_peserta === 'infant') {
+					bilik_type = `${roomTypeDisplay} (Infant)`;
+					if (umrahDateData) {
+						kredit_harga = umrahDateData.infant || 0;
+					} else if (outboundDateData) {
+						kredit_harga = outboundDateData.infant || 0;
+					}
+				} else {
+					// Default untuk peserta normal - gunakan bilik yang sama seperti peserta pertama
+					bilik_type = roomTypeDisplay;
+					if (pilih_bilik) {
+						// Hitung harga sama seperti peserta pertama
+						if (umrahDateData) {
+							switch (pilih_bilik) {
+								case 'double':
+									kredit_harga = umrahDateData.double || 0;
+									break;
+								case 'triple':
+									kredit_harga = umrahDateData.triple || 0;
+									break;
+								case 'quad':
+									kredit_harga = umrahDateData.quadruple || 0;
+									break;
+								case 'quintuple':
+									kredit_harga = umrahDateData.quintuple || 0;
+									break;
+								case 'low_deck_interior':
+									kredit_harga = umrahDateData.low_deck_interior || 0;
+									break;
+								case 'low_deck_seaview':
+									kredit_harga = umrahDateData.low_deck_seaview || 0;
+									break;
+								case 'low_deck_balcony':
+									kredit_harga = umrahDateData.low_deck_balcony || 0;
+									break;
+								case 'high_deck_interior':
+									kredit_harga = umrahDateData.high_deck_interior || 0;
+									break;
+								case 'high_deck_seaview':
+									kredit_harga = umrahDateData.high_deck_seaview || 0;
+									break;
+								case 'high_deck_balcony':
+									kredit_harga = umrahDateData.high_deck_balcony || 0;
+									break;
+							}
+						}
+					} else if (pilih_bilik_pelancongan) {
+						// Hitung harga sama seperti peserta pertama
+						if (outboundDateData) {
+							switch (pilih_bilik_pelancongan) {
+								case 'single':
+									kredit_harga = outboundDateData.single || 0;
+									break;
+								case 'double':
+									kredit_harga = outboundDateData.double || 0;
+									break;
+								case 'triple':
+									kredit_harga = outboundDateData.triple || 0;
+									break;
+							}
+						}
+					}
+				}
+			} else {
+				// Peserta tanpa kategori (normal) - gunakan bilik yang sama seperti peserta pertama
+				let selectedRoomType = '';
+				if (umrahDateData) {
+					selectedRoomType = pilih_bilik;
+				} else if (outboundDateData) {
+					selectedRoomType = pilih_bilik_pelancongan;
+				}
+
+				// Format nama bilik: capitalize first letter
+				let roomTypeDisplay = selectedRoomType ? selectedRoomType.charAt(0).toUpperCase() + selectedRoomType.slice(1) : '';
+
+				bilik_type = roomTypeDisplay;
+				kredit_harga = 0;
+
+				if (pilih_bilik) {
+					// Hitung harga sama seperti peserta pertama
+					if (umrahDateData) {
+						switch (pilih_bilik) {
+							case 'double':
+								kredit_harga = umrahDateData.double || 0;
+								break;
+							case 'triple':
+								kredit_harga = umrahDateData.triple || 0;
+								break;
+							case 'quad':
+								kredit_harga = umrahDateData.quadruple || 0;
+								break;
+							case 'quintuple':
+								kredit_harga = umrahDateData.quintuple || 0;
+								break;
+							case 'low_deck_interior':
+								kredit_harga = umrahDateData.low_deck_interior || 0;
+								break;
+							case 'low_deck_seaview':
+								kredit_harga = umrahDateData.low_deck_seaview || 0;
+								break;
+							case 'low_deck_balcony':
+								kredit_harga = umrahDateData.low_deck_balcony || 0;
+								break;
+							case 'high_deck_interior':
+								kredit_harga = umrahDateData.high_deck_interior || 0;
+								break;
+							case 'high_deck_seaview':
+								kredit_harga = umrahDateData.high_deck_seaview || 0;
+								break;
+							case 'high_deck_balcony':
+								kredit_harga = umrahDateData.high_deck_balcony || 0;
+								break;
+						}
+					}
+				} else if (pilih_bilik_pelancongan) {
+					// Hitung harga sama seperti peserta pertama
+					if (outboundDateData) {
+						switch (pilih_bilik_pelancongan) {
+							case 'single':
+								kredit_harga = outboundDateData.single || 0;
+								break;
+							case 'double':
+								kredit_harga = outboundDateData.double || 0;
+								break;
+							case 'triple':
+								kredit_harga = outboundDateData.triple || 0;
+								break;
+						}
+					}
+				}
+			}
+			}
+
+			// Selalu kirim row lengkap, isi dengan string kosong jika tidak ada data
+			const bilValue = i === 1 ? '1' : (namaValue !== '' ? i.toString() : '');
+			const nokpValue = i === 1 ? nokp : (nokp_peserta || '');
+			const bilikValue = bilik_type;
+			const kreditValue = kredit_harga;
+
 			butir_mahram[`row_${i}`] = {
-				[`Bil${i}`]: nama_peserta ? i.toString() : '',
-				[`Nama${i}`]: nama_peserta || '',
-				[`no/kp${i}`]: nokp_peserta || ''
+				[`Bil${i}`]: bilValue,
+				[`Nama${i}`]: namaValue,
+				[`no/kp${i}`]: nokpValue,
+				'bilik': bilikValue,
+				'kredit': kreditValue
 			};
+
+			// Debug logging untuk melacak proses perhitungan
+			console.log(`Peserta ${i}: ${namaValue} | Kategori: ${kategori_peserta} | Bilik: ${bilikValue} | Kredit: RM ${kreditValue}`);
 		}
 
 		// Siapkan data sesuai format JSON yang diminta
@@ -389,6 +711,7 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 				"Tel (R)": '',
 				"Kod Tempa": kod_tempa,
 				"Ruj Caw": '',
+				package_type: formData.get('package_type') || '',
 				"Kod Pakej": kod_pakej,
 				"Tarikh Jangkaan": tarikh_jangkaan,
 				"2 bilik": pilih_bilik === 'double' ? true : '',
@@ -403,6 +726,11 @@ async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 				"high_deck_seaview": pilih_bilik === 'high_deck_seaview' ? true : '',
 				"high_deck_balcony": pilih_bilik === 'high_deck_balcony' ? true : '',
 				"Pilihan Penerbangan": pilihan_penerbangan,
+				flight_name: (() => {
+					const flightName = tarikh_umrah ? (umrahDateData?.flight_name || '') : '';
+					console.log('Flight name from database:', flightName);
+					return flightName;
+				})(),
 				"consultant_uuid": formData.get('konsultan') || '',
 				butir_mahram: butir_mahram
 			},
@@ -779,6 +1107,22 @@ export const actions = {
 				}
 			}
 
+			// VALIDASI WAJIB: Bilik harus dipilih sebelum booking
+			if (maklumat.umrah_date_id && !formData.get('pilih_bilik')) {
+				console.error('Bilik Umrah tidak dipilih');
+				return fail(400, {
+					error: 'Bilik Umrah wajib dipilih sebelum booking',
+					form: maklumat
+				});
+			}
+			if (maklumat.outbound_date_id && !formData.get('pilih_bilik_pelancongan')) {
+				console.error('Bilik Pelancongan tidak dipilih');
+				return fail(400, {
+					error: 'Bilik Pelancongan wajib dipilih sebelum booking',
+					form: maklumat
+				});
+			}
+
 			// Validate name contains only letters and spaces (disallow numbers)
 			const nameOnlyRegex = /^[\p{L}\s]+$/u;
 			const trimmedNama = String(maklumat.nama || '').trim();
@@ -1091,9 +1435,21 @@ export const actions = {
 
 		} catch (error) {
 			console.error('Error in main form submission:', error);
-			return fail(500, {
-				error: 'Internal server error',
-				form: {}
+
+			// Berikan pesan error yang lebih spesifik
+			let errorMessage = 'Internal server error';
+			let statusCode = 500;
+
+			if (error.message && error.message.includes('Bilik')) {
+				errorMessage = error.message; // Pesan validasi bilik
+				statusCode = 400;
+			} else if (error.message) {
+				errorMessage = error.message;
+			}
+
+			return fail(statusCode, {
+				error: errorMessage,
+				form: maklumat || {}
 			});
 		}
 	}
