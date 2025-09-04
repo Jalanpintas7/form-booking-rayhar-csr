@@ -977,7 +977,7 @@
 		if (available.length > 0) {
 			options.push(...available.map(opt => ({
 				value: opt.value,
-				label: `${opt.label} (RM ${opt.price})`,
+				label: `${opt.label} (RM ${formatPrice(opt.price)})`,
 				disabled: false
 			})));
 		}
@@ -1802,11 +1802,11 @@
 
 	// Format price untuk display
 	function formatPrice(priceString) {
-		if (!priceString) return '0';
+		if (!priceString) return '0.00';
 		// Handle format price yang berbeda (ada yang "12.000" dan ada yang "45")
 		const price = parseFloat(priceString);
 		if (isNaN(price)) return priceString;
-		return price.toLocaleString('ms-MY');
+		return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 	}
 
 	// Cleanup function untuk clear timer

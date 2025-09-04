@@ -94,10 +94,17 @@ export async function calculateOutboundTotalPrice(outboundDateId, roomType, numb
 // Fungsi untuk menghitung total price umrah
 export async function calculateUmrahTotalPrice(umrahDateId, roomType, numberOfParticipants, participantCategories) {
 	try {
-		// Ambil semua data harga dari umrah_dates (tanpa kolom cwb karena dihitung dinamis)
+		// Ambil semua data harga dari umrah_dates termasuk informasi musim dan kategori untuk identifikasi paket khusus
 		const { data: umrahDateData, error } = await dataService.supabase
 			.from('umrah_dates')
-			.select('double, triple, quadruple, quintuple, low_deck_interior, low_deck_seaview, low_deck_balcony, high_deck_interior, high_deck_seaview, high_deck_balcony, cnb, infant')
+			.select(`
+				double, triple, quadruple, quintuple, 
+				low_deck_interior, low_deck_seaview, low_deck_balcony, 
+				high_deck_interior, high_deck_seaview, high_deck_balcony, 
+				cnb, infant,
+				umrah_seasons!inner(id, name),
+				umrah_categories!inner(id, name)
+			`)
 			.eq('id', umrahDateId)
 			.single();
 
@@ -110,6 +117,12 @@ export async function calculateUmrahTotalPrice(umrahDateId, roomType, numberOfPa
 			console.log('No price data found for umrah date');
 			return null;
 		}
+
+		// Debug: Tampilkan struktur data yang diterima
+		console.log('🔍 RAW UMRAN DATE DATA:');
+		console.log('umrahDateData:', JSON.stringify(umrahDateData, null, 2));
+		console.log('umrah_seasons:', umrahDateData.umrah_seasons);
+		console.log('umrah_categories:', umrahDateData.umrah_categories);
 
 		// Tentukan harga dasar berdasarkan jenis bilik yang dipilih
 		let basePrice = null;
@@ -156,6 +169,38 @@ export async function calculateUmrahTotalPrice(umrahDateId, roomType, numberOfPa
 			return null;
 		}
 
+		// Debug: Tampilkan ID yang diterima
+		console.log('🔍 DEBUG ID PACKAGE:');
+		console.log('Season ID:', umrahDateData.umrah_seasons?.id);
+		console.log('Category ID:', umrahDateData.umrah_categories?.id);
+		console.log('Target Hijazi ID:', '065a1f1f-9fe2-4643-b613-8bf355d2c487');
+		console.log('Target Promosi Season ID:', '593e7550-adc8-440f-af46-2b35cf35391e');
+		console.log('Target Promosi Category ID:', 'fe935569-7a63-48e1-881d-a8f123017632');
+		
+		// Cek jenis paket untuk menentukan diskon CWB berdasarkan ID
+		const isHijaziKembara5Kota = umrahDateData.umrah_seasons?.id === '065a1f1f-9fe2-4643-b613-8bf355d2c487';
+		
+		const isPromosi4990 = umrahDateData.umrah_seasons?.id === '593e7550-adc8-440f-af46-2b35cf35391e' && 
+							  umrahDateData.umrah_categories?.id === 'fe935569-7a63-48e1-881d-a8f123017632';
+		
+		console.log('isHijaziKembara5Kota:', isHijaziKembara5Kota);
+		console.log('isPromosi4990:', isPromosi4990);
+		
+		// Tentukan diskon CWB berdasarkan paket
+		let cwbDiscount = 500; // default
+		let packageType = 'Standard';
+		
+		if (isHijaziKembara5Kota) {
+			cwbDiscount = 1000;
+			packageType = 'Hijazi Kembara 5 Kota';
+		} else if (isPromosi4990) {
+			cwbDiscount = 300;
+			packageType = 'Promosi 4990';
+		}
+		
+		console.log(`Paket: ${umrahDateData.umrah_seasons?.name} (ID: ${umrahDateData.umrah_seasons?.id}) - ${umrahDateData.umrah_categories?.name} (ID: ${umrahDateData.umrah_categories?.id})`);
+		console.log(`Diskon CWB: RM ${cwbDiscount} (${packageType})`);
+
 		// Mulai perhitungan total price
 		let totalPrice = 0;
 		
@@ -171,10 +216,10 @@ export async function calculateUmrahTotalPrice(umrahDateId, roomType, numberOfPa
 
 				switch (kategori) {
 					case 'cwb':
-						// CWB (Child With Bed): harga bilik yang dipilih - 500
+						// CWB (Child With Bed): harga bilik yang dipilih - diskon (500 atau 1000)
 						// Gunakan basePrice yang sudah dihitung sebelumnya
-						participantPrice = basePrice - 500;
-						console.log(`Peserta ${i} (CWB): RM ${participantPrice} (base: ${basePrice} - 500)`);
+						participantPrice = basePrice - cwbDiscount;
+						console.log(`Peserta ${i} (CWB): RM ${participantPrice} (base: ${basePrice} - ${cwbDiscount})`);
 						break;
 					case 'cnb':
 						// CNB (Child No Bed): harga dari kolom cnb di database
@@ -358,7 +403,7 @@ export async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 		if (tarikh_umrah) {
 			const { data: umrahData } = await dataService.supabase
 				.from('umrah_dates')
-				.select('double, triple, quadruple, quintuple, low_deck_interior, low_deck_seaview, low_deck_balcony, high_deck_interior, high_deck_seaview, high_deck_balcony, cnb, infant, flight_name, umrah_categories!inner(name)')
+				.select('double, triple, quadruple, quintuple, low_deck_interior, low_deck_seaview, low_deck_balcony, high_deck_interior, high_deck_seaview, high_deck_balcony, cnb, infant, flight_name, umrah_categories!inner(id, name), umrah_seasons!inner(id, name)')
 				.eq('id', tarikh_umrah)
 				.single();
 			umrahDateData = umrahData;
@@ -476,7 +521,31 @@ export async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 					if (kategori_peserta === 'cwb') {
 						bilik_type = `${roomTypeDisplay} (CWB)`;
 						if (umrahDateData) {
-							// Untuk umrah: CWB = harga bilik yang dipilih - 500
+							// Debug: Tampilkan ID yang diterima
+							console.log('🔍 DEBUG ID PACKAGE (sendToN8n):');
+							console.log('Season ID:', umrahDateData.umrah_seasons?.id);
+							console.log('Category ID:', umrahDateData.umrah_categories?.id);
+							
+							// Cek jenis paket untuk menentukan diskon CWB berdasarkan ID
+							const isHijaziKembara5Kota = umrahDateData.umrah_seasons?.id === '065a1f1f-9fe2-4643-b613-8bf355d2c487';
+							
+							const isPromosi4990 = umrahDateData.umrah_seasons?.id === '593e7550-adc8-440f-af46-2b35cf35391e' && 
+												  umrahDateData.umrah_categories?.id === 'fe935569-7a63-48e1-881d-a8f123017632';
+							
+							console.log('isHijaziKembara5Kota:', isHijaziKembara5Kota);
+							console.log('isPromosi4990:', isPromosi4990);
+							
+							// Tentukan diskon CWB berdasarkan paket
+							let cwbDiscount = 500; // default
+							if (isHijaziKembara5Kota) {
+								cwbDiscount = 1000;
+							} else if (isPromosi4990) {
+								cwbDiscount = 300;
+							}
+							
+							console.log('Final CWB Discount:', cwbDiscount);
+							
+							// Untuk umrah: CWB = harga bilik yang dipilih - diskon (500 atau 1000)
 							let basePrice = 0;
 							switch (pilih_bilik) {
 								case 'double':
@@ -512,7 +581,7 @@ export async function sendToN8n(formData, bookingId, pesertaData, totalPrice) {
 								default:
 									basePrice = umrahDateData.double || 0; // fallback ke double
 							}
-							kredit_harga = basePrice - 500; // CWB = base price - 500
+							kredit_harga = basePrice - cwbDiscount; // CWB = base price - diskon
 						} else if (outboundDateData) {
 							// Untuk pelancongan: CWB = harga dari kolom cwb di database
 							kredit_harga = outboundDateData.cwb || 0;

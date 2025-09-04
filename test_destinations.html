@@ -51,7 +51,7 @@
             if (!priceString || priceString === '-' || priceString === '') return 'Tidak Tersedia';
             const price = parseFloat(priceString);
             if (isNaN(price)) return priceString;
-            return `RM ${price.toLocaleString('ms-MY')}`;
+            return `RM ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
 
         function getDestinationAvailability() {
